@@ -12,7 +12,7 @@ const els = {
   noMatch: document.getElementById('no-match'),
 };
 
-/** Stages in process order: { id, description, nextStages, wipLocations }. */
+/** Stages in process order: { id, description, nextStages, wipLocations: [{ id, description }] }. */
 let stages = [];
 /** Id of the stage being edited, or null. Only one row is editable at a time. */
 let editingId = null;
@@ -36,12 +36,22 @@ function description(id) {
   return stages.find(s => s.id === id)?.description ?? id;
 }
 
+/** Mirrors WipLocation.defaultDescription on the server: "WAFER-PREP-001" in "Wafer Prep" → "Wafer Prep 1". */
+function defaultWipDescription(stageDescription, wipId) {
+  const m = /-(\d+)$/.exec(wipId);
+  return m ? `${stageDescription} ${parseInt(m[1], 10)}` : wipId;
+}
+
+/** The API keys WIP locations by id, in display order; the page works with an ordered array. */
 function toStage(id, s) {
   return {
     id,
     description: s.description,
     nextStages: s['next-stages'] ?? [],
-    wipLocations: s['wip-locations'] ?? [],
+    wipLocations: Object.entries(s['wip-locations'] ?? {}).map(([wipId, w]) => ({
+      id: wipId,
+      description: w?.description || wipId,
+    })),
   };
 }
 
@@ -71,7 +81,7 @@ function matches(stage, text) {
     stage.id,
     stage.description,
     ...stage.nextStages.map(description),
-    ...stage.wipLocations,
+    ...stage.wipLocations.flatMap(w => [w.id, w.description]),
   ];
   return haystack.some(v => v.toLowerCase().includes(text));
 }
@@ -108,7 +118,10 @@ function viewRow(stage) {
 
   const wip = stage.wipLocations.length
     ? el('div', { class: 'chips' }, stage.wipLocations.map(loc =>
-        el('span', { class: 'chip chip--wip', text: loc })))
+        el('span', { class: 'chip chip--wip', title: loc.id }, [
+          loc.description,
+          ...(loc.description === loc.id ? [] : [el('span', { class: 'wip-id', text: loc.id })]),
+        ])))
     : el('span', { class: 'empty', text: 'None' });
 
   return el('tr', { id: `stage-${stage.id}` }, [
@@ -130,7 +143,7 @@ function viewRow(stage) {
 
 function editRow(stage) {
   const checked = new Set(stage.nextStages);
-  const wip = [...stage.wipLocations];
+  const wip = stage.wipLocations.map(w => ({ ...w }));
 
   const error = el('div', { class: 'row-error', role: 'alert' });
 
@@ -147,43 +160,66 @@ function editRow(stage) {
       ])),
   ]);
 
-  const wipChips = el('div', { class: 'chips' });
+  // One line per WIP location: fixed id, editable description, remove button.
+  const wipList = el('div', { class: 'wip-list' });
   const renderWip = () => {
-    wipChips.replaceChildren(...wip.map((loc, i) =>
-      el('span', { class: 'chip chip--wip' }, [
-        loc,
+    wipList.replaceChildren(...wip.map((loc, i) =>
+      el('div', { class: 'wip-line' }, [
+        el('span', { class: 'wip-line-id', text: loc.id }),
+        el('input', {
+          type: 'text',
+          value: loc.description,
+          placeholder: defaultWipDescription(stage.description, loc.id),
+          'aria-label': `Description for ${loc.id}`,
+          oninput: e => { loc.description = e.target.value; },
+        }),
         el('button', {
           type: 'button',
           class: 'chip-remove',
           text: '×',
-          'aria-label': `Remove ${loc}`,
-          onclick: () => { wip.splice(i, 1); renderWip(); wipInput.focus(); },
+          'aria-label': `Remove ${loc.id}`,
+          onclick: () => { wip.splice(i, 1); renderWip(); wipIdInput.focus(); },
         }),
       ])));
-    if (wip.length === 0) wipChips.append(el('span', { class: 'empty', text: 'None' }));
+    if (wip.length === 0) wipList.append(el('span', { class: 'empty', text: 'None' }));
   };
 
-  const wipInput = el('input', {
+  const onEnter = e => {
+    if (e.key === 'Enter') { e.preventDefault(); addWip(); }
+  };
+  const wipIdInput = el('input', {
     type: 'text',
+    class: 'wip-add-id',
     placeholder: `e.g. ${stage.id.toUpperCase()}-004`,
-    'aria-label': 'New WIP location',
-    onkeydown: e => {
-      if (e.key === 'Enter') { e.preventDefault(); addWip(); }
+    'aria-label': 'New WIP location ID',
+    onkeydown: onEnter,
+    oninput: () => {
+      wipDescriptionInput.placeholder = wipIdInput.value.trim()
+        ? defaultWipDescription(stage.description, wipIdInput.value.trim())
+        : 'Description (optional)';
     },
+  });
+  const wipDescriptionInput = el('input', {
+    type: 'text',
+    placeholder: 'Description (optional)',
+    'aria-label': 'New WIP location description',
+    onkeydown: onEnter,
   });
 
   function addWip() {
-    const value = wipInput.value.trim();
-    if (!value) return;
-    if (wip.some(w => w.toLowerCase() === value.toLowerCase())) {
-      error.textContent = `${value} is already a WIP location for this stage.`;
+    const id = wipIdInput.value.trim();
+    if (!id) return;
+    if (wip.some(w => w.id.toLowerCase() === id.toLowerCase())) {
+      error.textContent = `${id} is already a WIP location for this stage.`;
       return;
     }
     error.textContent = '';
-    wip.push(value);
-    wipInput.value = '';
+    wip.push({ id, description: wipDescriptionInput.value.trim() || defaultWipDescription(stage.description, id) });
+    wipIdInput.value = '';
+    wipDescriptionInput.value = '';
+    wipDescriptionInput.placeholder = 'Description (optional)';
     renderWip();
-    wipInput.focus();
+    wipIdInput.focus();
   }
 
   renderWip();
@@ -201,7 +237,11 @@ function editRow(stage) {
       const res = await fetch(`${API}/${encodeURIComponent(stage.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 'next-stages': nextStages, 'wip-locations': wip }),
+        body: JSON.stringify({
+          'next-stages': nextStages,
+          // A blank description is stored as unset, and the server shows the default.
+          'wip-locations': Object.fromEntries(wip.map(w => [w.id, { description: w.description.trim() }])),
+        }),
       });
       if (!res.ok) throw new Error(await errorMessage(res));
       const saved = toStage(stage.id, await res.json());
@@ -220,9 +260,10 @@ function editRow(stage) {
     stageCell(stage),
     el('td', { 'data-label': 'Valid next stages' }, [nextOptions]),
     el('td', { 'data-label': 'WIP locations' }, [
-      wipChips,
+      wipList,
       el('div', { class: 'wip-add' }, [
-        wipInput,
+        wipIdInput,
+        wipDescriptionInput,
         el('button', { type: 'button', class: 'btn', text: 'Add', onclick: addWip }),
       ]),
       error,

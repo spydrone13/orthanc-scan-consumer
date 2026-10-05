@@ -219,9 +219,36 @@ tr.row--editing {
 }
 
 .chip--wip {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
   background: var(--gray-100);
+}
+
+.wip-id,
+.wip-line-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.6875rem;
+  color: var(--gray-400);
+}
+
+/* WIP locations while editing */
+.wip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-width: 24rem;
+}
+
+.wip-line {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) 1fr auto;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.wip-line input {
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
+  min-width: 0;
 }
 
 .chip-remove {
@@ -312,12 +339,16 @@ tr.row--editing {
   display: flex;
   gap: 0.375rem;
   margin-top: 0.5rem;
-  max-width: 20rem;
+  max-width: 24rem;
 }
 
 .wip-add input {
   font-size: 0.8125rem;
   padding: 0.375rem 0.5rem;
+  min-width: 0;
+}
+
+.wip-add .wip-add-id {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 

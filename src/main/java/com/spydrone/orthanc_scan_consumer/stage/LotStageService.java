@@ -8,7 +8,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -66,7 +65,7 @@ public class LotStageService {
 	}
 
 	@Transactional
-	public LotStage update(String id, List<String> nextStages, List<String> wipLocations) {
+	public LotStage update(String id, List<String> nextStages, Map<String, WipLocation> wipLocations) {
 		LotStageEntity entity = repository.findById(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown stage: " + id));
 
@@ -81,12 +80,21 @@ public class LotStageService {
 		}
 		requireNoDuplicates(next, "next stage");
 
-		List<String> wip = wipLocations == null ? List.of() : wipLocations.stream()
-				.filter(Objects::nonNull)
-				.map(String::trim)
-				.filter(s -> !s.isEmpty())
-				.toList();
-		requireNoDuplicates(wip, "WIP location");
+		// Blank ids are dropped; a blank description is stored as null so the default shows.
+		Map<String, WipLocation> wip = new LinkedHashMap<>();
+		if (wipLocations != null) {
+			wipLocations.forEach((wipId, location) -> {
+				String trimmedId = blankToNull(wipId);
+				if (trimmedId == null) {
+					return;
+				}
+				if (wip.containsKey(trimmedId)) {
+					throw badRequest("Duplicate WIP location: " + trimmedId);
+				}
+				wip.put(trimmedId, new WipLocation(location == null ? null : blankToNull(location.description())));
+			});
+		}
+		requireNoDuplicates(List.copyOf(wip.keySet()), "WIP location");
 
 		entity.replace(next, wip);
 		return entity.toLotStage();
@@ -99,6 +107,10 @@ public class LotStageService {
 				throw badRequest("Duplicate " + what + ": " + value);
 			}
 		}
+	}
+
+	private static String blankToNull(String value) {
+		return value == null || value.isBlank() ? null : value.trim();
 	}
 
 	private static ResponseStatusException badRequest(String message) {

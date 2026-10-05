@@ -1,7 +1,9 @@
 package com.spydrone.orthanc_scan_consumer.stage;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -31,8 +33,7 @@ public class LotStageEntity {
 	@ElementCollection
 	@CollectionTable(name = "lot_stage_wip_locations", joinColumns = @JoinColumn(name = "stage_id"))
 	@OrderColumn(name = "idx")
-	@Column(name = "wip_location")
-	private List<String> wipLocations = new ArrayList<>();
+	private List<WipLocationEntry> wipLocations = new ArrayList<>();
 
 	protected LotStageEntity() {
 	}
@@ -42,21 +43,34 @@ public class LotStageEntity {
 		this.description = stage.description();
 		this.position = position;
 		this.nextStages.addAll(stage.nextStages());
-		this.wipLocations.addAll(stage.wipLocations());
+		replaceWipLocations(stage.wipLocations());
 	}
 
 	public String getId() {
 		return id;
 	}
 
+	/** WIP locations without a stored description (e.g. from before descriptions existed) get the default. */
 	public LotStage toLotStage() {
-		return new LotStage(description, List.copyOf(nextStages), List.copyOf(wipLocations));
+		Map<String, WipLocation> wip = new LinkedHashMap<>();
+		for (WipLocationEntry entry : wipLocations) {
+			String wipDescription = entry.getDescription() != null
+					? entry.getDescription()
+					: WipLocation.defaultDescription(description, entry.getId());
+			wip.put(entry.getId(), new WipLocation(wipDescription));
+		}
+		return new LotStage(description, List.copyOf(nextStages), wip);
 	}
 
-	public void replace(List<String> nextStages, List<String> wipLocations) {
+	public void replace(List<String> nextStages, Map<String, WipLocation> wipLocations) {
 		this.nextStages.clear();
 		this.nextStages.addAll(nextStages);
+		replaceWipLocations(wipLocations);
+	}
+
+	private void replaceWipLocations(Map<String, WipLocation> wipLocations) {
 		this.wipLocations.clear();
-		this.wipLocations.addAll(wipLocations);
+		wipLocations.forEach((wipId, wip) ->
+				this.wipLocations.add(new WipLocationEntry(wipId, wip == null ? null : wip.description())));
 	}
 }
