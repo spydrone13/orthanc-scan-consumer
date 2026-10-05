@@ -108,19 +108,16 @@ async function load() {
   els.title.textContent = `Barcodes — ${stage.description}`;
 
   const nextIds = (stage['next-stages'] ?? []).filter(id => stages[id]);
+  // This stage's WIP locations first, then one section per next stage: its move-to-stage
+  // barcode followed by its WIP locations.
   const sections = [];
-  if (nextIds.length) {
-    sections.push(section('Move to stage', nextIds.map(id => label(stages[id].description, id))));
-  }
   const ownWip = wipLabels(stage);
   if (ownWip.length) {
-    sections.push(section(`WIP locations — ${stage.description}`, ownWip));
+    sections.push(section('WIP Locations', ownWip));
   }
   for (const id of nextIds) {
-    const nextWip = wipLabels(stages[id]);
-    if (nextWip.length) {
-      sections.push(section(`WIP locations — ${stages[id].description} (next stage)`, nextWip));
-    }
+    const next = stages[id];
+    sections.push(section(`Next Stage: ${next.description}`, [label(next.description, id), ...wipLabels(next)]));
   }
 
   els.status.textContent = '';
