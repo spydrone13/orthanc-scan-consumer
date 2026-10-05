@@ -35,12 +35,13 @@ public class LotStageEvent {
 	protected LotStageEvent() {
 	}
 
-	public static LotStageEvent of(ScanRecord record, String fromStage, String fromWipLocation, LotEntity after,
-			Instant occurredAt) {
+	/** {@code scanType} is the type as applied, not the scan's own (untrusted) scanType. */
+	public static LotStageEvent of(ScanRecord record, ScanType scanType, String fromStage, String fromWipLocation,
+			LotEntity after, Instant occurredAt) {
 		LotStageEvent event = new LotStageEvent();
 		event.clientId = record.clientId();
 		event.lotId = after.getLotId();
-		event.scanType = record.scanType();
+		event.scanType = scanType;
 		event.userName = record.userName();
 		event.fromStage = fromStage;
 		event.fromWipLocation = fromWipLocation;

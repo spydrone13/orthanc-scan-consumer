@@ -28,7 +28,7 @@ class LotControllerTest {
 
 	static {
 		LOT.apply(SCAN.scanType(), SCAN.currentStage(), SCAN.destination(), Instant.now());
-		EVENT = LotStageEvent.of(SCAN, null, null, LOT, Instant.now());
+		EVENT = LotStageEvent.of(SCAN, SCAN.scanType(), null, null, LOT, Instant.now());
 	}
 
 	@Autowired

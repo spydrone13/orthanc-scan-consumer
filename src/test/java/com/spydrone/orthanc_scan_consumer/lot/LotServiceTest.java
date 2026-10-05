@@ -1,18 +1,22 @@
 package com.spydrone.orthanc_scan_consumer.lot;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
+import com.spydrone.orthanc_scan_consumer.stage.LotStageRepository;
 
 class LotServiceTest {
 
@@ -20,7 +24,15 @@ class LotServiceTest {
 
 	private final LotRepository lotRepository = mock(LotRepository.class);
 	private final LotStageEventRepository eventRepository = mock(LotStageEventRepository.class);
-	private final LotService service = new LotService(lotRepository, eventRepository);
+	private final LotStageRepository lotStageRepository = mock(LotStageRepository.class);
+	private final LotService service = new LotService(lotRepository, eventRepository, lotStageRepository);
+
+	@BeforeEach
+	void stages() {
+		given(lotStageRepository.existsById("S1")).willReturn(true);
+		given(lotStageRepository.existsById("S2")).willReturn(true);
+		given(lotStageRepository.existsById("S5")).willReturn(true);
+	}
 
 	@Test
 	void createsLotOnFirstScan() {
@@ -40,10 +52,10 @@ class LotServiceTest {
 	}
 
 	@Test
-	void transitionalScanMovesStageAndClearsWip() {
+	void stageDestinationMovesStageAndClearsWipWhateverTheScanTypeSays() {
 		given(lotRepository.findById("L1")).willReturn(Optional.of(lotAt("S1", "WIP-1")));
 
-		LotEntity lot = service.apply(scan("S1", "S2", ScanType.TRANSITIONAL), NOW);
+		LotEntity lot = service.apply(scan("S1", "S2", ScanType.INFORMATIONAL), NOW);
 
 		assertThat(lot.getCurrentStage()).isEqualTo("S2");
 		assertThat(lot.getWipLocation()).isNull();
@@ -62,18 +74,31 @@ class LotServiceTest {
 	}
 
 	@Test
-	void informationalScanSetsWipWithinScanStage() {
+	void nonStageDestinationSetsWipWithinScanStageWhateverTheScanTypeSays() {
 		given(lotRepository.findById("L1")).willReturn(Optional.of(lotAt("S1", null)));
 
-		LotEntity lot = service.apply(scan("S1", "WIP-2", ScanType.INFORMATIONAL), NOW);
+		LotEntity lot = service.apply(scan("S1", "WIP-2", ScanType.TRANSITIONAL), NOW);
 
 		assertThat(lot.getCurrentStage()).isEqualTo("S1");
 		assertThat(lot.getWipLocation()).isEqualTo("WIP-2");
 
 		LotStageEvent event = savedEvent();
+		assertThat(event.getScanType()).isEqualTo(ScanType.INFORMATIONAL);
 		assertThat(event.getFromWipLocation()).isNull();
 		assertThat(event.getToStage()).isEqualTo("S1");
 		assertThat(event.getToWipLocation()).isEqualTo("WIP-2");
+	}
+
+	@Test
+	void nullDestinationIsAWipLocation() {
+		given(lotRepository.findById("L1")).willReturn(Optional.of(lotAt("S1", "WIP-1")));
+
+		LotEntity lot = service.apply(scan("S1", null, ScanType.TRANSITIONAL), NOW);
+
+		verify(lotStageRepository, never()).existsById(any());
+		assertThat(lot.getCurrentStage()).isEqualTo("S1");
+		assertThat(lot.getWipLocation()).isNull();
+		assertThat(savedEvent().getScanType()).isEqualTo(ScanType.INFORMATIONAL);
 	}
 
 	@Test
