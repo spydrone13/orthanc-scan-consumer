@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lot Stages</title>
+  <link rel="stylesheet" href="/css/lot-stages.css">
+  <script type="module" src="/js/lot-stages.js"></script>
+</head>
+<body>
+  <main class="page">
+    <div class="card">
+      <h1 class="card-title">Lot Stages</h1>
+      <p class="intro">
+        Each stage lists the stages a lot can move to next and the WIP locations within it.
+        Changes apply to scanning immediately.
+      </p>
+
+      <div class="toolbar">
+        <label class="search">
+          <span class="visually-hidden">Filter stages</span>
+          <input id="filter" type="search" placeholder="Filter by stage or WIP location" autocomplete="off">
+        </label>
+        <span id="count" class="count" aria-live="polite"></span>
+      </div>
+
+      <div id="status" class="status" role="status"></div>
+
+      <div class="table-wrap" id="table-wrap" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Stage</th>
+              <th scope="col">Valid next stages</th>
+              <th scope="col">WIP locations</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p id="no-match" class="empty" hidden>No stages match the filter.</p>
+    </div>
+  </main>
+</body>
+</html>
