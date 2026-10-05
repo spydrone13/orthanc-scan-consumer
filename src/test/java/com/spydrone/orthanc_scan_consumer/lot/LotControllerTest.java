@@ -22,12 +22,12 @@ import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 class LotControllerTest {
 
 	private static final ScanRecord SCAN =
-			new ScanRecord("abc", "u", "S1", "L1", "WIP-1", ScanType.INFORMATIONAL, "n");
+			new ScanRecord("abc", "u", "S1", "L1", null, "WIP-1", ScanType.INFORMATIONAL, "n");
 	private static final LotEntity LOT = new LotEntity("L1");
 	private static final LotStageEvent EVENT;
 
 	static {
-		LOT.apply(SCAN.scanType(), SCAN.currentStage(), SCAN.destination(), Instant.now());
+		LOT.moveTo(SCAN.currentStage(), SCAN.destinationWipLocation(), Instant.now());
 		EVENT = LotStageEvent.of(SCAN, SCAN.scanType(), null, null, LOT, Instant.now());
 	}
 

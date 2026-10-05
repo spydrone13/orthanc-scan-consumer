@@ -2,8 +2,6 @@ package com.spydrone.orthanc_scan_consumer.lot;
 
 import java.time.Instant;
 
-import com.spydrone.orthanc_scan_consumer.scan.ScanType;
-
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -26,20 +24,9 @@ public class LotEntity {
 		this.lotId = lotId;
 	}
 
-	/**
-	 * Applies a scan as-is, without checking it against the stage graph. A transitional scan moves
-	 * the lot to the destination stage (no WIP location yet); an informational scan places it at the
-	 * destination WIP location within the scan's current stage.
-	 */
-	public void apply(ScanType scanType, String scanStage, String destination, Instant at) {
-		if (scanType == ScanType.TRANSITIONAL) {
-			this.currentStage = destination;
-			this.wipLocation = null;
-		}
-		else {
-			this.currentStage = scanStage;
-			this.wipLocation = destination;
-		}
+	public void moveTo(String stage, String wipLocation, Instant at) {
+		this.currentStage = stage;
+		this.wipLocation = wipLocation;
 		this.updatedAt = at;
 	}
 

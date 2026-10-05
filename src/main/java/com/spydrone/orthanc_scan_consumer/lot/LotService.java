@@ -1,29 +1,35 @@
 package com.spydrone.orthanc_scan_consumer.lot;
 
 import java.time.Instant;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
-import com.spydrone.orthanc_scan_consumer.stage.LotStageRepository;
 
 @Service
 public class LotService {
 
 	private final LotRepository lotRepository;
 	private final LotStageEventRepository eventRepository;
-	private final LotStageRepository lotStageRepository;
 
-	public LotService(LotRepository lotRepository, LotStageEventRepository eventRepository,
-			LotStageRepository lotStageRepository) {
+	public LotService(LotRepository lotRepository, LotStageEventRepository eventRepository) {
 		this.lotRepository = lotRepository;
 		this.eventRepository = eventRepository;
-		this.lotStageRepository = lotStageRepository;
 	}
 
-	/** Moves the lot per the scan (creating it on its first scan) and records the move. */
+	/**
+	 * Moves the lot per the scan (creating it on its first scan) and records the move. The scan's
+	 * own scanType isn't trusted; the move comes from its destination fields:
+	 * <ul>
+	 * <li>stage and WIP location: into that WIP location in that stage
+	 * <li>stage only: into that stage, no WIP location
+	 * <li>WIP location only: into that WIP location in the scan's current stage
+	 * <li>neither: the lot stays where it is
+	 * </ul>
+	 */
 	@Transactional
 	public LotEntity apply(ScanRecord record, Instant at) {
 		LotEntity lot = lotRepository.findById(record.lotId())
@@ -31,20 +37,33 @@ public class LotService {
 		String fromStage = lot.getCurrentStage();
 		String fromWipLocation = lot.getWipLocation();
 
-		ScanType scanType = classify(record.destination());
-		lot.apply(scanType, record.currentStage(), record.destination(), at);
+		String destinationStage = blankToNull(record.destinationStage());
+		String destinationWipLocation = blankToNull(record.destinationWipLocation());
+		String toStage;
+		String toWipLocation;
+		if (destinationStage != null) {
+			toStage = destinationStage;
+			toWipLocation = destinationWipLocation;
+		}
+		else if (destinationWipLocation != null || fromStage == null) {
+			toStage = record.currentStage();
+			toWipLocation = destinationWipLocation;
+		}
+		else {
+			toStage = fromStage;
+			toWipLocation = fromWipLocation;
+		}
+
+		ScanType scanType = Objects.equals(toStage, record.currentStage())
+				? ScanType.INFORMATIONAL
+				: ScanType.TRANSITIONAL;
+		lot.moveTo(toStage, toWipLocation, at);
 		lotRepository.save(lot);
 		eventRepository.save(LotStageEvent.of(record, scanType, fromStage, fromWipLocation, lot, at));
 		return lot;
 	}
 
-	/**
-	 * The scan's own scanType can't be trusted, so it's derived from the destination: a known stage
-	 * id is a stage move, anything else is a WIP location.
-	 */
-	private ScanType classify(String destination) {
-		return destination != null && lotStageRepository.existsById(destination)
-				? ScanType.TRANSITIONAL
-				: ScanType.INFORMATIONAL;
+	private static String blankToNull(String value) {
+		return value == null || value.isBlank() ? null : value.trim();
 	}
 }

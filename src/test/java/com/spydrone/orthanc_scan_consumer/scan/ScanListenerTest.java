@@ -15,7 +15,7 @@ import com.spydrone.orthanc_scan_consumer.lot.LotService;
 class ScanListenerTest {
 
 	private static final ScanRecord RECORD =
-			new ScanRecord("abc", "u", "S1", "L1", "S2", ScanType.TRANSITIONAL, "");
+			new ScanRecord("abc", "u", "S1", "L1", "S2", "W1", ScanType.TRANSITIONAL, "");
 
 	private final ScanRepository repository = mock(ScanRepository.class);
 	private final LotService lotService = mock(LotService.class);

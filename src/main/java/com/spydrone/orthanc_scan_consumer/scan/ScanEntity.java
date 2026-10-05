@@ -18,7 +18,8 @@ public class ScanEntity {
 	private String userName;
 	private String currentStage;
 	private String lotId;
-	private String destination;
+	private String destinationStage;
+	private String destinationWipLocation;
 	@Enumerated(EnumType.STRING)
 	private ScanType scanType;
 	@Column(length = 2000)
@@ -34,7 +35,8 @@ public class ScanEntity {
 		entity.userName = record.userName();
 		entity.currentStage = record.currentStage();
 		entity.lotId = record.lotId();
-		entity.destination = record.destination();
+		entity.destinationStage = record.destinationStage();
+		entity.destinationWipLocation = record.destinationWipLocation();
 		entity.scanType = record.scanType();
 		entity.note = record.note();
 		entity.receivedAt = receivedAt;
@@ -57,8 +59,12 @@ public class ScanEntity {
 		return lotId;
 	}
 
-	public String getDestination() {
-		return destination;
+	public String getDestinationStage() {
+		return destinationStage;
+	}
+
+	public String getDestinationWipLocation() {
+		return destinationWipLocation;
 	}
 
 	public ScanType getScanType() {

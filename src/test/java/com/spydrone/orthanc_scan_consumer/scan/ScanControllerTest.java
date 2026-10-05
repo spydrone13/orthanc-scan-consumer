@@ -19,7 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class ScanControllerTest {
 
 	private static final ScanEntity SCAN = ScanEntity.from(
-			new ScanRecord("abc", "u", "S1", "L1", "S2", ScanType.TRANSITIONAL, "n"), Instant.now());
+			new ScanRecord("abc", "u", "S1", "L1", "S2", "W1", ScanType.TRANSITIONAL, "n"), Instant.now());
 
 	@Autowired
 	private MockMvc mvc;
@@ -44,7 +44,9 @@ class ScanControllerTest {
 
 		mvc.perform(get("/api/scans/abc"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.lotId").value("L1"));
+				.andExpect(jsonPath("$.lotId").value("L1"))
+				.andExpect(jsonPath("$.destinationStage").value("S2"))
+				.andExpect(jsonPath("$.destinationWipLocation").value("W1"));
 	}
 
 	@Test
