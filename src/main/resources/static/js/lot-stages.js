@@ -118,10 +118,7 @@ function viewRow(stage) {
 
   const wip = stage.wipLocations.length
     ? el('div', { class: 'chips' }, stage.wipLocations.map(loc =>
-        el('span', { class: 'chip chip--wip', title: loc.id }, [
-          loc.description,
-          ...(loc.description === loc.id ? [] : [el('span', { class: 'wip-id', text: loc.id })]),
-        ])))
+        el('span', { class: 'chip chip--wip', text: loc.description, title: loc.id })))
     : el('span', { class: 'empty', text: 'None' });
 
   return el('tr', { id: `stage-${stage.id}` }, [

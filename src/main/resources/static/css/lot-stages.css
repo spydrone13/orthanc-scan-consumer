@@ -223,7 +223,6 @@ tr.row--editing {
   background: var(--gray-100);
 }
 
-.wip-id,
 .wip-line-id {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.6875rem;
