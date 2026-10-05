@@ -126,6 +126,16 @@ function viewRow(stage) {
     el('td', { 'data-label': 'Valid next stages' }, [next]),
     el('td', { 'data-label': 'WIP locations' }, [wip]),
     el('td', { class: 'actions' }, [
+      ...(stage.nextStages.length || stage.wipLocations.length
+        ? [el('a', {
+            class: 'btn',
+            text: 'Barcodes',
+            href: `/lot-stages/barcodes?stage=${encodeURIComponent(stage.id)}`,
+            target: '_blank',
+            rel: 'noopener',
+            'aria-label': `Print barcodes for ${stage.description}`,
+          })]
+        : []),
       el('button', {
         type: 'button',
         class: 'btn',

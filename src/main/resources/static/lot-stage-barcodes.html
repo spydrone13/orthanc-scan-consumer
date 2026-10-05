@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stage Barcodes</title>
+  <link rel="stylesheet" href="/css/lot-stages.css">
+  <script src="/js/vendor/JsBarcode.all.min.js"></script>
+  <script type="module" src="/js/lot-stage-barcodes.js"></script>
+</head>
+<body>
+  <main class="page">
+    <div class="card">
+      <div class="toolbar no-print">
+        <a class="btn" href="/lot-stages">&larr; Back to Lot Stages</a>
+        <button id="print" type="button" class="btn btn--primary" hidden>Print</button>
+      </div>
+
+      <h1 id="title" class="card-title">Stage Barcodes</h1>
+      <p class="intro no-print">
+        Destinations an operator can scan from this stage. Print and post at the station.
+      </p>
+
+      <div id="status" class="status" role="status"></div>
+      <div id="sections"></div>
+    </div>
+  </main>
+</body>
+</html>

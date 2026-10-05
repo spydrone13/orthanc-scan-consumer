@@ -38,4 +38,22 @@ class LotStagePageTest {
 		mvc.perform(get("/js/lot-stages.js")).andExpect(status().isOk());
 		mvc.perform(get("/css/lot-stages.css")).andExpect(status().isOk());
 	}
+
+	@Test
+	void barcodeUrlForwardsToBarcodePage() throws Exception {
+		mvc.perform(get("/lot-stages/barcodes").param("stage", "intake"))
+				.andExpect(status().isOk())
+				.andExpect(forwardedUrl("/lot-stage-barcodes.html"));
+	}
+
+	@Test
+	void servesBarcodePageAndAssets() throws Exception {
+		mvc.perform(get("/lot-stage-barcodes.html"))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("id=\"sections\"")));
+		mvc.perform(get("/js/lot-stage-barcodes.js")).andExpect(status().isOk());
+		mvc.perform(get("/js/vendor/JsBarcode.all.min.js"))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("JsBarcode v3.12.3")));
+	}
 }

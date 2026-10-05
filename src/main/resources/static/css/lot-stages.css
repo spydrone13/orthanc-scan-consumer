@@ -418,3 +418,73 @@ tr.row--editing {
     padding-top: 0.5rem;
   }
 }
+
+a.btn {
+  display: inline-block;
+  text-decoration: none;
+}
+
+/* Barcode sheet (lot-stage-barcodes.html) */
+.barcode-section + .barcode-section {
+  margin-top: 1.75rem;
+}
+
+.barcode-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  break-after: avoid;
+}
+
+.barcode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: 0.75rem;
+}
+
+.barcode-label {
+  border: 1px dashed var(--gray-400);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  text-align: center;
+  break-inside: avoid;
+}
+
+.barcode-label-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.barcode-label svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .page {
+    padding: 0;
+    min-height: 0;
+  }
+
+  .card {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    max-width: none;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .barcode-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
