@@ -8,7 +8,8 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.spydrone.orthanc_scan_consumer.lot.LotService;
+import com.spydrone.orthanc_scan_consumer.lot.application.ApplyScan;
+import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
 
 @Component
 public class ScanListener {
@@ -16,11 +17,11 @@ public class ScanListener {
 	private static final Logger log = LoggerFactory.getLogger(ScanListener.class);
 
 	private final ScanRepository repository;
-	private final LotService lotService;
+	private final LotCommandHandler lotCommands;
 
-	public ScanListener(ScanRepository repository, LotService lotService) {
+	public ScanListener(ScanRepository repository, LotCommandHandler lotCommands) {
 		this.repository = repository;
-		this.lotService = lotService;
+		this.lotCommands = lotCommands;
 	}
 
 	/**
@@ -36,6 +37,6 @@ public class ScanListener {
 		}
 		Instant now = Instant.now();
 		repository.save(ScanEntity.from(record, now));
-		lotService.apply(record, now);
+		lotCommands.handle(ApplyScan.from(record, now));
 	}
 }

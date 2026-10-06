@@ -10,7 +10,8 @@ import static org.mockito.Mockito.verify;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import com.spydrone.orthanc_scan_consumer.lot.LotService;
+import com.spydrone.orthanc_scan_consumer.lot.application.ApplyScan;
+import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
 
 class ScanListenerTest {
 
@@ -18,8 +19,8 @@ class ScanListenerTest {
 			new ScanRecord("abc", "u", "S1", "L1", "S2", "W1", ScanType.TRANSITIONAL, "");
 
 	private final ScanRepository repository = mock(ScanRepository.class);
-	private final LotService lotService = mock(LotService.class);
-	private final ScanListener listener = new ScanListener(repository, lotService);
+	private final LotCommandHandler lotCommands = mock(LotCommandHandler.class);
+	private final ScanListener listener = new ScanListener(repository, lotCommands);
 
 	@Test
 	void savesNewScanAndAppliesItToTheLot() {
@@ -30,7 +31,7 @@ class ScanListenerTest {
 		assertThat(saved.getValue().getClientId()).isEqualTo("abc");
 		assertThat(saved.getValue().getScanType()).isEqualTo(ScanType.TRANSITIONAL);
 		assertThat(saved.getValue().getReceivedAt()).isNotNull();
-		verify(lotService).apply(RECORD, saved.getValue().getReceivedAt());
+		verify(lotCommands).handle(ApplyScan.from(RECORD, saved.getValue().getReceivedAt()));
 	}
 
 	@Test
@@ -40,6 +41,6 @@ class ScanListenerTest {
 		listener.onScan(RECORD);
 
 		verify(repository, never()).save(any());
-		verify(lotService, never()).apply(any(), any());
+		verify(lotCommands, never()).handle(any(ApplyScan.class));
 	}
 }

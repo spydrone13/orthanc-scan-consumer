@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot;
+package com.spydrone.orthanc_scan_consumer.lot.domain;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

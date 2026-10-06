@@ -1,8 +1,11 @@
-package com.spydrone.orthanc_scan_consumer.lot;
+package com.spydrone.orthanc_scan_consumer.lot.history;
 
 import java.time.Instant;
 
-import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
+import com.spydrone.orthanc_scan_consumer.lot.domain.Location;
+import com.spydrone.orthanc_scan_consumer.lot.domain.Scan;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ScanApplied;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ScanRejected;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 
 import jakarta.persistence.Column;
@@ -12,7 +15,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/** A scan as it applied to a lot: where the lot was before and where it ended up. */
+/** A row of a lot's scan history, written from the lot's domain events. */
 @Entity
 @Table(name = "lot_stage_events")
 public class LotStageEvent {
@@ -37,29 +40,30 @@ public class LotStageEvent {
 	protected LotStageEvent() {
 	}
 
-	/** A scan that left the lot where it was; {@code scanType} is the move that was attempted. */
-	public static LotStageEvent rejected(ScanRecord record, ScanType scanType, LotEntity lot, String reason,
-			Instant occurredAt) {
-		LotStageEvent event = of(record, scanType, lot.getCurrentStage(), lot.getWipLocation(), lot, occurredAt);
-		event.rejectedReason = reason;
-		return event;
+	public static LotStageEvent applied(ScanApplied event) {
+		return of(event.lotId(), event.scan(), event.scanType(), event.from(), event.to(), event.at(), null);
 	}
 
-	/** {@code scanType} is the type as applied, not the scan's own (untrusted) scanType. */
-	public static LotStageEvent of(ScanRecord record, ScanType scanType, String fromStage, String fromWipLocation,
-			LotEntity after, Instant occurredAt) {
-		LotStageEvent event = new LotStageEvent();
-		event.clientId = record.clientId();
-		event.lotId = after.getLotId();
-		event.scanType = scanType;
-		event.userName = record.userName();
-		event.fromStage = fromStage;
-		event.fromWipLocation = fromWipLocation;
-		event.toStage = after.getCurrentStage();
-		event.toWipLocation = after.getWipLocation();
-		event.note = record.note();
-		event.occurredAt = occurredAt;
-		return event;
+	public static LotStageEvent rejected(ScanRejected event) {
+		return of(event.lotId(), event.scan(), event.scanType(), event.location(), event.location(), event.at(),
+				event.reason().name());
+	}
+
+	private static LotStageEvent of(String lotId, Scan scan, ScanType scanType, Location from, Location to,
+			Instant occurredAt, String rejectedReason) {
+		LotStageEvent row = new LotStageEvent();
+		row.clientId = scan.clientId();
+		row.lotId = lotId;
+		row.scanType = scanType;
+		row.userName = scan.userName();
+		row.fromStage = from.stage();
+		row.fromWipLocation = from.wipLocation();
+		row.toStage = to.stage();
+		row.toWipLocation = to.wipLocation();
+		row.note = scan.note();
+		row.occurredAt = occurredAt;
+		row.rejectedReason = rejectedReason;
+		return row;
 	}
 
 	public String getClientId() {
