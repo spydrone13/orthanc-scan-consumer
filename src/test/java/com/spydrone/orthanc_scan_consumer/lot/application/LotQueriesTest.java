@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
@@ -51,8 +50,8 @@ class LotQueriesTest {
 
 	@Test
 	void unknownLotIsNotFound() {
-		assertThatThrownBy(() -> queries.get("nope")).isInstanceOf(ResponseStatusException.class);
-		assertThatThrownBy(() -> queries.history("nope")).isInstanceOf(ResponseStatusException.class);
+		assertThatThrownBy(() -> queries.get("nope")).isInstanceOf(LotNotFoundException.class);
+		assertThatThrownBy(() -> queries.history("nope")).isInstanceOf(LotNotFoundException.class);
 	}
 
 	private void scan(String clientId, String lotId, String stage, String wip, Instant at) {

@@ -1,9 +1,7 @@
 package com.spydrone.orthanc_scan_consumer.lot.application;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotRepository;
@@ -28,19 +26,15 @@ public class LotCommandHandler {
 		return lots.save(lot);
 	}
 
+	/** @throws LotNotFoundException if there's no such lot */
 	public Lot handle(ChangeLotStatus command) {
-		if (command.status() == null) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status is required");
-		}
 		Lot lot = existing(command.lotId());
 		lot.changeStatus(command.status(), command.at());
 		return lots.save(lot);
 	}
 
+	/** @throws LotNotFoundException if there's no such lot */
 	public Lot handle(SetLotHold command) {
-		if (command.onHold() == null) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "onHold is required");
-		}
 		Lot lot = existing(command.lotId());
 		if (command.onHold()) {
 			lot.placeOnHold(command.at());
@@ -52,7 +46,6 @@ public class LotCommandHandler {
 	}
 
 	private Lot existing(String lotId) {
-		return lots.findById(lotId)
-				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown lot: " + lotId));
+		return lots.findById(lotId).orElseThrow(() -> new LotNotFoundException(lotId));
 	}
 }

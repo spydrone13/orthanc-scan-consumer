@@ -2,10 +2,8 @@ package com.spydrone.orthanc_scan_consumer.lot.application;
 
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEventRepository;
 
@@ -27,14 +25,19 @@ public class LotQueries {
 		return lots.findAllNewestFirst();
 	}
 
+	/** @throws LotNotFoundException if there's no such lot */
 	public LotView get(String lotId) {
-		return lots.findView(lotId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+		return lots.findView(lotId).orElseThrow(() -> new LotNotFoundException(lotId));
 	}
 
-	/** The lot's scan history, newest first. */
+	/**
+	 * The lot's scan history, newest first.
+	 *
+	 * @throws LotNotFoundException if there's no such lot
+	 */
 	public List<LotStageEventView> history(String lotId) {
 		if (!lots.existsById(lotId)) {
-			throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+			throw new LotNotFoundException(lotId);
 		}
 		return history.findByLotIdOrderByOccurredAtDesc(lotId).stream().map(LotStageEventView::of).toList();
 	}

@@ -10,8 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.spydrone.orthanc_scan_consumer.lot.domain.Location;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
@@ -89,22 +87,14 @@ class LotCommandHandlerTest {
 
 	@Test
 	void unknownLotIsNotFound() {
-		assertStatus(() -> handler.handle(new ChangeLotStatus("nope", LotStatus.COMPLETE, NOW)), HttpStatus.NOT_FOUND);
-		assertStatus(() -> handler.handle(new SetLotHold("nope", true, NOW)), HttpStatus.NOT_FOUND);
-	}
-
-	@Test
-	void missingValuesAreBadRequests() {
-		assertStatus(() -> handler.handle(new ChangeLotStatus("L1", null, NOW)), HttpStatus.BAD_REQUEST);
-		assertStatus(() -> handler.handle(new SetLotHold("L1", null, NOW)), HttpStatus.BAD_REQUEST);
+		assertThatThrownBy(() -> handler.handle(new ChangeLotStatus("nope", LotStatus.COMPLETE, NOW)))
+				.isInstanceOf(LotNotFoundException.class)
+				.hasMessage("Unknown lot: nope");
+		assertThatThrownBy(() -> handler.handle(new SetLotHold("nope", true, NOW)))
+				.isInstanceOfSatisfying(LotNotFoundException.class, e -> assertThat(e.getLotId()).isEqualTo("nope"));
 	}
 
 	private static ScanRecord scan(String clientId, String stage, String destinationStage, String destinationWip) {
 		return new ScanRecord(clientId, "u", stage, "L1", destinationStage, destinationWip, ScanType.INFORMATIONAL, "n");
-	}
-
-	private static void assertStatus(Runnable call, HttpStatus status) {
-		assertThatThrownBy(call::run).isInstanceOfSatisfying(ResponseStatusException.class,
-				e -> assertThat(e.getStatusCode()).isEqualTo(status));
 	}
 }

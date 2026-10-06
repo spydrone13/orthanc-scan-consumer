@@ -11,11 +11,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.server.ResponseStatusException;
 
+import com.spydrone.orthanc_scan_consumer.lot.application.LotNotFoundException;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotQueries;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotStageEventView;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotView;
@@ -60,9 +59,10 @@ class LotQueryControllerTest {
 
 	@Test
 	void unknownLotIsNotFound() throws Exception {
-		given(queries.get("nope")).willThrow(new ResponseStatusException(HttpStatus.NOT_FOUND));
+		given(queries.get("nope")).willThrow(new LotNotFoundException("nope"));
 
-		mvc.perform(get("/api/lots/nope")).andExpect(status().isNotFound());
+		mvc.perform(get("/api/lots/nope")).andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.detail").value("Unknown lot: nope"));
 	}
 
 	@Test
@@ -80,8 +80,9 @@ class LotQueryControllerTest {
 
 	@Test
 	void eventsForUnknownLotAreNotFound() throws Exception {
-		given(queries.history("nope")).willThrow(new ResponseStatusException(HttpStatus.NOT_FOUND));
+		given(queries.history("nope")).willThrow(new LotNotFoundException("nope"));
 
-		mvc.perform(get("/api/lots/nope/events")).andExpect(status().isNotFound());
+		mvc.perform(get("/api/lots/nope/events")).andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.detail").value("Unknown lot: nope"));
 	}
 }
