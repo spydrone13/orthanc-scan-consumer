@@ -1,6 +1,8 @@
 package com.spydrone.orthanc_scan_consumer.lot;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -10,6 +12,8 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
@@ -130,6 +134,55 @@ class LotServiceTest {
 		assertThat(lot.getCurrentStage()).isEqualTo("S5");
 		assertThat(lot.getWipLocation()).isEqualTo("WIP-9");
 		assertThat(savedEvent().getFromStage()).isEqualTo("S1");
+	}
+
+	@Test
+	void newLotIsActive() {
+		given(lotRepository.findById("L1")).willReturn(Optional.empty());
+
+		LotEntity lot = service.apply(scan("S1", "S2", null), NOW);
+
+		assertThat(lot.getStatus()).isEqualTo(LotStatus.ACTIVE);
+	}
+
+	@Test
+	void scanStillMovesANonActiveLot() {
+		LotEntity canceled = lotAt("S1", "WIP-1");
+		canceled.setStatus(LotStatus.CANCELED, NOW.minusSeconds(10));
+		given(lotRepository.findById("L1")).willReturn(Optional.of(canceled));
+
+		LotEntity lot = service.apply(scan("S1", "S2", null), NOW);
+
+		assertThat(lot.getCurrentStage()).isEqualTo("S2");
+		assertThat(lot.getStatus()).isEqualTo(LotStatus.CANCELED);
+	}
+
+	@Test
+	void updateStatusChangesStatusAndUpdatedAt() {
+		given(lotRepository.findById("L1")).willReturn(Optional.of(lotAt("S1", "WIP-1")));
+		given(lotRepository.save(any())).willAnswer(call -> call.getArgument(0));
+
+		LotEntity lot = service.updateStatus("L1", LotStatus.DESTROYED, NOW);
+
+		assertThat(lot.getStatus()).isEqualTo(LotStatus.DESTROYED);
+		assertThat(lot.getUpdatedAt()).isEqualTo(NOW);
+		assertThat(lot.getCurrentStage()).isEqualTo("S1");
+	}
+
+	@Test
+	void updateStatusOfUnknownLotIsNotFound() {
+		given(lotRepository.findById("nope")).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.updateStatus("nope", LotStatus.COMPLETE, NOW))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+						e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+	}
+
+	@Test
+	void updateStatusRequiresAStatus() {
+		assertThatThrownBy(() -> service.updateStatus("L1", null, NOW))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+						e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
 	}
 
 	private static ScanRecord scan(String stage, String destinationStage, String destinationWipLocation) {

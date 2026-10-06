@@ -2,7 +2,12 @@ package com.spydrone.orthanc_scan_consumer.lot;
 
 import java.time.Instant;
 
+import org.hibernate.annotations.ColumnDefault;
+
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -15,6 +20,11 @@ public class LotEntity {
 	private String lotId;
 	private String currentStage;
 	private String wipLocation;
+	/** The column default fills in lots stored before status existed. */
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	@ColumnDefault("'ACTIVE'")
+	private LotStatus status = LotStatus.ACTIVE;
 	private Instant updatedAt;
 
 	protected LotEntity() {
@@ -30,6 +40,11 @@ public class LotEntity {
 		this.updatedAt = at;
 	}
 
+	public void setStatus(LotStatus status, Instant at) {
+		this.status = status;
+		this.updatedAt = at;
+	}
+
 	public String getLotId() {
 		return lotId;
 	}
@@ -40,6 +55,10 @@ public class LotEntity {
 
 	public String getWipLocation() {
 		return wipLocation;
+	}
+
+	public LotStatus getStatus() {
+		return status;
 	}
 
 	public Instant getUpdatedAt() {

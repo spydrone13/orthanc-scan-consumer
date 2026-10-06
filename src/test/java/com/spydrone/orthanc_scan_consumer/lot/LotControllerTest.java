@@ -1,7 +1,10 @@
 package com.spydrone.orthanc_scan_consumer.lot;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,8 +15,11 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
@@ -40,6 +46,9 @@ class LotControllerTest {
 	@MockitoBean
 	private LotStageEventRepository eventRepository;
 
+	@MockitoBean
+	private LotService lotService;
+
 	@Test
 	void listsLots() throws Exception {
 		given(lotRepository.findAllByOrderByUpdatedAtDesc()).willReturn(List.of(LOT));
@@ -48,7 +57,38 @@ class LotControllerTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$[0].lotId").value("L1"))
 				.andExpect(jsonPath("$[0].currentStage").value("S1"))
-				.andExpect(jsonPath("$[0].wipLocation").value("WIP-1"));
+				.andExpect(jsonPath("$[0].wipLocation").value("WIP-1"))
+				.andExpect(jsonPath("$[0].status").value("active"));
+	}
+
+	@Test
+	void updatesStatus() throws Exception {
+		LotEntity destroyed = new LotEntity("L1");
+		destroyed.setStatus(LotStatus.DESTROYED, Instant.now());
+		given(lotService.updateStatus(eq("L1"), eq(LotStatus.DESTROYED), any())).willReturn(destroyed);
+
+		mvc.perform(put("/api/lots/L1/status").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"status\":\"destroyed\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.lotId").value("L1"))
+				.andExpect(jsonPath("$.status").value("destroyed"));
+	}
+
+	@Test
+	void unknownStatusValueIsBadRequest() throws Exception {
+		mvc.perform(put("/api/lots/L1/status").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"status\":\"bogus\"}"))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void statusOfUnknownLotIsNotFound() throws Exception {
+		given(lotService.updateStatus(eq("nope"), any(), any()))
+				.willThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown lot: nope"));
+
+		mvc.perform(put("/api/lots/nope/status").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"status\":\"complete\"}"))
+				.andExpect(status().isNotFound());
 	}
 
 	@Test

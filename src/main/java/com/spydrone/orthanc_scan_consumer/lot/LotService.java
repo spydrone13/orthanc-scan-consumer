@@ -3,14 +3,20 @@ package com.spydrone.orthanc_scan_consumer.lot;
 import java.time.Instant;
 import java.util.Objects;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 
 @Service
 public class LotService {
+
+	private static final Logger log = LoggerFactory.getLogger(LotService.class);
 
 	private final LotRepository lotRepository;
 	private final LotStageEventRepository eventRepository;
@@ -34,6 +40,9 @@ public class LotService {
 	public LotEntity apply(ScanRecord record, Instant at) {
 		LotEntity lot = lotRepository.findById(record.lotId())
 				.orElseGet(() -> new LotEntity(record.lotId()));
+		if (lot.getStatus() != LotStatus.ACTIVE) {
+			log.warn("Applying scan {} to lot {} with status {}", record.clientId(), lot.getLotId(), lot.getStatus());
+		}
 		String fromStage = lot.getCurrentStage();
 		String fromWipLocation = lot.getWipLocation();
 
@@ -61,6 +70,18 @@ public class LotService {
 		lotRepository.save(lot);
 		eventRepository.save(LotStageEvent.of(record, scanType, fromStage, fromWipLocation, lot, at));
 		return lot;
+	}
+
+	/** Sets the lot's status; any status may change to any other. */
+	@Transactional
+	public LotEntity updateStatus(String lotId, LotStatus status, Instant at) {
+		if (status == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Status is required");
+		}
+		LotEntity lot = lotRepository.findById(lotId)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown lot: " + lotId));
+		lot.setStatus(status, at);
+		return lotRepository.save(lot);
 	}
 
 	private static String blankToNull(String value) {
