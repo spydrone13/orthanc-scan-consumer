@@ -147,15 +147,43 @@ class LotServiceTest {
 	}
 
 	@Test
-	void scanStillMovesANonActiveLot() {
+	void canceledLotIsNotMoved() {
 		LotEntity canceled = lotAt("S1", "WIP-1");
 		canceled.setStatus(LotStatus.CANCELED, NOW.minusSeconds(10));
 		given(lotRepository.findById("L1")).willReturn(Optional.of(canceled));
 
 		LotEntity lot = service.apply(scan("S1", "S2", null), NOW);
 
-		assertThat(lot.getCurrentStage()).isEqualTo("S2");
-		assertThat(lot.getStatus()).isEqualTo(LotStatus.CANCELED);
+		assertThat(lot.getCurrentStage()).isEqualTo("S1");
+		assertThat(lot.getWipLocation()).isEqualTo("WIP-1");
+		verify(lotRepository, never()).save(any());
+		LotStageEvent event = savedEvent();
+		assertThat(event.getRejectedReason()).isEqualTo("LOT_CANCELED");
+		assertThat(event.getToStage()).isEqualTo("S1");
+	}
+
+	@Test
+	void destroyedLotIsRejectedEvenWithinItsStage() {
+		LotEntity destroyed = lotAt("S1", "WIP-1");
+		destroyed.setStatus(LotStatus.DESTROYED, NOW.minusSeconds(10));
+		given(lotRepository.findById("L1")).willReturn(Optional.of(destroyed));
+
+		LotEntity lot = service.apply(scan("S1", "S1", "WIP-2"), NOW);
+
+		assertThat(lot.getWipLocation()).isEqualTo("WIP-1");
+		assertThat(savedEvent().getRejectedReason()).isEqualTo("LOT_DESTROYED");
+	}
+
+	@Test
+	void statusIsReportedBeforeHold() {
+		LotEntity lot = lotAt("S1", "WIP-1");
+		lot.setStatus(LotStatus.COMPLETE, NOW.minusSeconds(10));
+		lot.setOnHold(true, NOW.minusSeconds(10));
+		given(lotRepository.findById("L1")).willReturn(Optional.of(lot));
+
+		service.apply(scan("S1", "S2", null), NOW);
+
+		assertThat(savedEvent().getRejectedReason()).isEqualTo("LOT_COMPLETE");
 	}
 
 	@Test

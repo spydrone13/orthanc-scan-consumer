@@ -37,14 +37,13 @@ public class LotService {
 	 * <li>WIP location only: into that WIP location in the scan's current stage
 	 * <li>neither: the lot stays where it is
 	 * </ul>
+	 * A lot that isn't active can't be scanned at all, and a held lot can't leave its stage; those
+	 * scans are recorded with a rejectedReason and the lot is left as it was.
 	 */
 	@Transactional
 	public LotEntity apply(ScanRecord record, Instant at) {
 		LotEntity lot = lotRepository.findById(record.lotId())
 				.orElseGet(() -> new LotEntity(record.lotId()));
-		if (lot.getStatus() != LotStatus.ACTIVE) {
-			log.warn("Applying scan {} to lot {} with status {}", record.clientId(), lot.getLotId(), lot.getStatus());
-		}
 		String fromStage = lot.getCurrentStage();
 		String fromWipLocation = lot.getWipLocation();
 
@@ -68,7 +67,13 @@ public class LotService {
 		ScanType scanType = Objects.equals(toStage, record.currentStage())
 				? ScanType.INFORMATIONAL
 				: ScanType.TRANSITIONAL;
-		// The producer rejects these up front; this catches a hold placed while the scan was queued.
+		// The producer rejects these up front; this catches a status change or hold placed while
+		// the scan was queued.
+		if (lot.getStatus() != LotStatus.ACTIVE) {
+			log.warn("Not applying scan {}: lot {} is {}", record.clientId(), lot.getLotId(), lot.getStatus());
+			eventRepository.save(LotStageEvent.rejected(record, scanType, lot, "LOT_" + lot.getStatus().name(), at));
+			return lot;
+		}
 		if (lot.isOnHold() && !Objects.equals(toStage, fromStage)) {
 			log.warn("Not applying scan {}: lot {} is on hold in {}", record.clientId(), lot.getLotId(), fromStage);
 			eventRepository.save(LotStageEvent.rejected(record, scanType, lot, LOT_ON_HOLD, at));
