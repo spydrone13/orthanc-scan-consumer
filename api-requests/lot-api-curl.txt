@@ -1,0 +1,3 @@
+curl -X PUT http://localhost:3001/api/lots/LOT-004/status \
+    -H "Content-Type: application/json" \
+    -d '{"status":"canceled"}'
