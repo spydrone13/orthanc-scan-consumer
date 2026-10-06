@@ -31,8 +31,18 @@ public class LotStageEvent {
 	@Column(length = 2000)
 	private String note;
 	private Instant occurredAt;
+	/** Set when the scan was not applied (e.g. LOT_ON_HOLD); the to-values then equal the from-values. */
+	private String rejectedReason;
 
 	protected LotStageEvent() {
+	}
+
+	/** A scan that left the lot where it was; {@code scanType} is the move that was attempted. */
+	public static LotStageEvent rejected(ScanRecord record, ScanType scanType, LotEntity lot, String reason,
+			Instant occurredAt) {
+		LotStageEvent event = of(record, scanType, lot.getCurrentStage(), lot.getWipLocation(), lot, occurredAt);
+		event.rejectedReason = reason;
+		return event;
 	}
 
 	/** {@code scanType} is the type as applied, not the scan's own (untrusted) scanType. */
@@ -90,5 +100,9 @@ public class LotStageEvent {
 
 	public Instant getOccurredAt() {
 		return occurredAt;
+	}
+
+	public String getRejectedReason() {
+		return rejectedReason;
 	}
 }

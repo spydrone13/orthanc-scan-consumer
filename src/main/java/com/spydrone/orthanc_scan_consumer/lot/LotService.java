@@ -17,6 +17,8 @@ import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 public class LotService {
 
 	private static final Logger log = LoggerFactory.getLogger(LotService.class);
+	/** Same code the producer returns to the UI for a held lot. */
+	static final String LOT_ON_HOLD = "LOT_ON_HOLD";
 
 	private final LotRepository lotRepository;
 	private final LotStageEventRepository eventRepository;
@@ -66,6 +68,12 @@ public class LotService {
 		ScanType scanType = Objects.equals(toStage, record.currentStage())
 				? ScanType.INFORMATIONAL
 				: ScanType.TRANSITIONAL;
+		// The producer rejects these up front; this catches a hold placed while the scan was queued.
+		if (lot.isOnHold() && !Objects.equals(toStage, fromStage)) {
+			log.warn("Not applying scan {}: lot {} is on hold in {}", record.clientId(), lot.getLotId(), fromStage);
+			eventRepository.save(LotStageEvent.rejected(record, scanType, lot, LOT_ON_HOLD, at));
+			return lot;
+		}
 		lot.moveTo(toStage, toWipLocation, at);
 		lotRepository.save(lot);
 		eventRepository.save(LotStageEvent.of(record, scanType, fromStage, fromWipLocation, lot, at));
@@ -81,6 +89,18 @@ public class LotService {
 		LotEntity lot = lotRepository.findById(lotId)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown lot: " + lotId));
 		lot.setStatus(status, at);
+		return lotRepository.save(lot);
+	}
+
+	/** Places the lot on hold or releases it. A held lot can't be scanned out of its current stage. */
+	@Transactional
+	public LotEntity updateHold(String lotId, Boolean onHold, Instant at) {
+		if (onHold == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "onHold is required");
+		}
+		LotEntity lot = lotRepository.findById(lotId)
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown lot: " + lotId));
+		lot.setOnHold(onHold, at);
 		return lotRepository.save(lot);
 	}
 

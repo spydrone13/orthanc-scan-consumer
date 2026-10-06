@@ -25,6 +25,10 @@ public class LotEntity {
 	@Column(nullable = false)
 	@ColumnDefault("'ACTIVE'")
 	private LotStatus status = LotStatus.ACTIVE;
+	/** A held lot can't be scanned out of its current stage. */
+	@Column(nullable = false)
+	@ColumnDefault("false")
+	private boolean onHold;
 	private Instant updatedAt;
 
 	protected LotEntity() {
@@ -45,6 +49,11 @@ public class LotEntity {
 		this.updatedAt = at;
 	}
 
+	public void setOnHold(boolean onHold, Instant at) {
+		this.onHold = onHold;
+		this.updatedAt = at;
+	}
+
 	public String getLotId() {
 		return lotId;
 	}
@@ -59,6 +68,10 @@ public class LotEntity {
 
 	public LotStatus getStatus() {
 		return status;
+	}
+
+	public boolean isOnHold() {
+		return onHold;
 	}
 
 	public Instant getUpdatedAt() {

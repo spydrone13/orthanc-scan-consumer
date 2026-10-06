@@ -50,4 +50,9 @@ public class LotController {
 	public LotEntity updateStatus(@PathVariable String lotId, @RequestBody LotStatusUpdate update) {
 		return lotService.updateStatus(lotId, update.status(), Instant.now());
 	}
+
+	@PutMapping("/{lotId}/hold")
+	public LotEntity updateHold(@PathVariable String lotId, @RequestBody LotHoldUpdate update) {
+		return lotService.updateHold(lotId, update.onHold(), Instant.now());
+	}
 }

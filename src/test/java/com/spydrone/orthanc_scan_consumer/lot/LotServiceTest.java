@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
@@ -181,6 +182,68 @@ class LotServiceTest {
 	@Test
 	void updateStatusRequiresAStatus() {
 		assertThatThrownBy(() -> service.updateStatus("L1", null, NOW))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+						e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+	}
+
+	@Test
+	void heldLotIsNotScannedOutOfItsStage() {
+		LotEntity held = lotAt("S1", "WIP-1");
+		held.setOnHold(true, NOW.minusSeconds(10));
+		given(lotRepository.findById("L1")).willReturn(Optional.of(held));
+
+		LotEntity lot = service.apply(scan("S1", "S2", "WIP-2"), NOW);
+
+		assertThat(lot.getCurrentStage()).isEqualTo("S1");
+		assertThat(lot.getWipLocation()).isEqualTo("WIP-1");
+		assertThat(lot.getUpdatedAt()).isEqualTo(NOW.minusSeconds(10));
+		verify(lotRepository, never()).save(any());
+
+		LotStageEvent event = savedEvent();
+		assertThat(event.getRejectedReason()).isEqualTo("LOT_ON_HOLD");
+		assertThat(event.getScanType()).isEqualTo(ScanType.TRANSITIONAL);
+		assertThat(event.getFromStage()).isEqualTo("S1");
+		assertThat(event.getToStage()).isEqualTo("S1");
+		assertThat(event.getToWipLocation()).isEqualTo("WIP-1");
+	}
+
+	@Test
+	void heldLotCanMoveBetweenWipLocationsInItsStage() {
+		LotEntity held = lotAt("S1", "WIP-1");
+		held.setOnHold(true, NOW.minusSeconds(10));
+		given(lotRepository.findById("L1")).willReturn(Optional.of(held));
+
+		LotEntity lot = service.apply(scan("S1", "S1", "WIP-2"), NOW);
+
+		assertThat(lot.getCurrentStage()).isEqualTo("S1");
+		assertThat(lot.getWipLocation()).isEqualTo("WIP-2");
+		assertThat(savedEvent().getRejectedReason()).isNull();
+	}
+
+	@Test
+	void updateHoldSetsFlagAndUpdatedAt() {
+		given(lotRepository.findById("L1")).willReturn(Optional.of(lotAt("S1", "WIP-1")));
+		given(lotRepository.save(any())).willAnswer(call -> call.getArgument(0));
+
+		LotEntity lot = service.updateHold("L1", true, NOW);
+
+		assertThat(lot.isOnHold()).isTrue();
+		assertThat(lot.getUpdatedAt()).isEqualTo(NOW);
+		assertThat(service.updateHold("L1", false, NOW).isOnHold()).isFalse();
+	}
+
+	@Test
+	void updateHoldOfUnknownLotIsNotFound() {
+		given(lotRepository.findById("nope")).willReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.updateHold("nope", true, NOW))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+						e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+	}
+
+	@Test
+	void updateHoldRequiresAValue() {
+		assertThatThrownBy(() -> service.updateHold("L1", null, NOW))
 				.isInstanceOfSatisfying(ResponseStatusException.class,
 						e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
 	}

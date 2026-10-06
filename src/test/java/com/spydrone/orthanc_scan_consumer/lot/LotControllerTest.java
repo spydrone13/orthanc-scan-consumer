@@ -58,7 +58,30 @@ class LotControllerTest {
 				.andExpect(jsonPath("$[0].lotId").value("L1"))
 				.andExpect(jsonPath("$[0].currentStage").value("S1"))
 				.andExpect(jsonPath("$[0].wipLocation").value("WIP-1"))
-				.andExpect(jsonPath("$[0].status").value("active"));
+				.andExpect(jsonPath("$[0].status").value("active"))
+				.andExpect(jsonPath("$[0].onHold").value(false));
+	}
+
+	@Test
+	void updatesHold() throws Exception {
+		LotEntity held = new LotEntity("L1");
+		held.setOnHold(true, Instant.now());
+		given(lotService.updateHold(eq("L1"), eq(true), any())).willReturn(held);
+
+		mvc.perform(put("/api/lots/L1/hold").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"onHold\":true}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.onHold").value(true));
+	}
+
+	@Test
+	void holdOfUnknownLotIsNotFound() throws Exception {
+		given(lotService.updateHold(eq("nope"), any(), any()))
+				.willThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown lot: nope"));
+
+		mvc.perform(put("/api/lots/nope/hold").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"onHold\":true}"))
+				.andExpect(status().isNotFound());
 	}
 
 	@Test
