@@ -13,8 +13,6 @@ import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -32,8 +30,11 @@ public class LotStageEvent {
 	@Id
 	private String clientId;
 	private String lotId;
-	@Enumerated(EnumType.STRING)
-	private ScanType scanType;
+	/**
+	 * A {@link ScanType} name. Enums are kept as plain strings so the columns accept values added later
+	 * (see SchemaTest).
+	 */
+	private String scanType;
 	private String userName;
 	private String fromStage;
 	private String fromWipLocation;
@@ -45,9 +46,8 @@ public class LotStageEvent {
 	private Instant occurredAt;
 	/** Set when the scan was not applied (e.g. LOT_ON_HOLD); the to-values then equal the from-values. */
 	private String rejectedReason;
-	/** Set when the row is flagged for review; see {@link Discrepancy}. */
-	@Enumerated(EnumType.STRING)
-	private Discrepancy exception;
+	/** A {@link Discrepancy} name, set when the row is flagged for review. */
+	private String exception;
 	/** For a correction row: the scan that put the lot where the records wrongly had it. */
 	private String correctsClientId;
 
@@ -57,7 +57,7 @@ public class LotStageEvent {
 	public static LotStageEvent applied(ScanApplied event) {
 		LotStageEvent row = of(event.lotId(), event.scan(), event.scanType(), event.from(), event.to(), event.at(),
 				null);
-		row.exception = event.discrepancy();
+		row.exception = event.discrepancy() == null ? null : event.discrepancy().name();
 		return row;
 	}
 
@@ -71,7 +71,7 @@ public class LotStageEvent {
 				event.at().minus(CORRECTION_OFFSET), null);
 		row.clientId = event.scan().clientId() + CORRECTION_SUFFIX;
 		row.note = event.scan().correctionReason();
-		row.exception = event.discrepancy();
+		row.exception = event.discrepancy() == null ? null : event.discrepancy().name();
 		row.correctsClientId = event.correctsClientId();
 		return row;
 	}
@@ -81,7 +81,7 @@ public class LotStageEvent {
 		LotStageEvent row = new LotStageEvent();
 		row.clientId = scan.clientId();
 		row.lotId = lotId;
-		row.scanType = scanType;
+		row.scanType = scanType.name();
 		row.userName = scan.userName();
 		row.fromStage = from.stage();
 		row.fromWipLocation = from.wipLocation();
@@ -101,8 +101,9 @@ public class LotStageEvent {
 		return lotId;
 	}
 
+	/** Null for rows stored without one. */
 	public ScanType getScanType() {
-		return scanType;
+		return scanType == null ? null : ScanType.valueOf(scanType);
 	}
 
 	public String getUserName() {
@@ -138,7 +139,7 @@ public class LotStageEvent {
 	}
 
 	public Discrepancy getException() {
-		return exception;
+		return exception == null ? null : Discrepancy.valueOf(exception);
 	}
 
 	public String getCorrectsClientId() {

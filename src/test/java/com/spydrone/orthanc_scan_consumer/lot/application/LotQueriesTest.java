@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.spydrone.orthanc_scan_consumer.lot.domain.Discrepancy;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
@@ -33,6 +35,9 @@ class LotQueriesTest {
 	@Autowired
 	private LotCommandHandler commands;
 
+	@Autowired
+	private JdbcTemplate jdbc;
+
 	@Test
 	void listsViewsNewestFirst() {
 		scan("c1", "L1", "intake", "intake", "INTAKE-001", NOW.minusSeconds(60));
@@ -40,9 +45,19 @@ class LotQueriesTest {
 		commands.handle(new SetLotHold("L1", true, NOW.minusSeconds(30)));
 
 		assertThat(queries.list()).containsExactly(
-				new LotView("L2", "wafer-prep", null, LotStatus.ACTIVE, false, NOW),
-				new LotView("L1", "intake", "INTAKE-001", LotStatus.ACTIVE, true, NOW.minusSeconds(30)));
+				new LotView("L2", "wafer-prep", null, LotStatus.ACTIVE, false, NOW,
+						new LotView.LastScan("c2", "u", NOW)),
+				new LotView("L1", "intake", "INTAKE-001", LotStatus.ACTIVE, true, NOW.minusSeconds(30),
+						new LotView.LastScan("c1", "u", NOW.minusSeconds(60))));
 		assertThat(queries.get("L1").onHold()).isTrue();
+	}
+
+	@Test
+	void lastScanIsTheScanThatMovedTheLotEvenAfterACorrection() {
+		scan("c1", "L1", "photolithography", "dry-etching", null, NOW.minusSeconds(60));
+		scan("c2", "L1", "wet-etching", "photoresist-removal", null, NOW);
+
+		assertThat(queries.get("L1").lastScan()).isEqualTo(new LotView.LastScan("c2", "u", NOW));
 	}
 
 	@Test
@@ -75,6 +90,16 @@ class LotQueriesTest {
 		assertThat(queries.exceptions(NOW.minusSeconds(30))).hasSize(1);
 		assertThat(queries.history("L1")).extracting(LotStageEventView::clientId)
 				.containsExactly("c2", "c2#correction", "c1");
+	}
+
+	@Test
+	void historyRowsStoredWithoutAScanTypeStillRead() {
+		scan("c1", "L1", "intake", "intake", null, NOW);
+		jdbc.update("insert into lot_stage_events (client_id, lot_id, occurred_at) values (?, ?, ?)", "old", "L1",
+				Timestamp.from(NOW.minusSeconds(60)));
+
+		assertThat(queries.history("L1")).extracting(LotStageEventView::scanType)
+				.containsExactly(ScanType.INFORMATIONAL, null);
 	}
 
 	@Test

@@ -11,8 +11,6 @@ import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -30,11 +28,13 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 	/** Null when both columns are null (Hibernate's rule for embeddables); see {@link #location()}. */
 	@Embedded
 	private Location location;
-	/** The column default fills in lots stored before status existed. */
-	@Enumerated(EnumType.STRING)
+	/**
+	 * A {@link LotStatus} name, kept as a plain string so the column accepts statuses added later
+	 * (see SchemaTest). The column default fills in lots stored before status existed.
+	 */
 	@Column(nullable = false)
 	@ColumnDefault("'ACTIVE'")
-	private LotStatus status = LotStatus.ACTIVE;
+	private String status = LotStatus.ACTIVE.name();
 	@Column(nullable = false)
 	@ColumnDefault("false")
 	private boolean onHold;
@@ -74,10 +74,11 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 	 * </ol>
 	 */
 	public void applyScan(Scan scan, StageRoutes routes, Instant at) {
-		if (status != LotStatus.ACTIVE) {
+		LotStatus current = getStatus();
+		if (current != LotStatus.ACTIVE) {
 			Location from = location();
 			Location to = destination(scan, from);
-			registerEvent(new ScanRejected(lotId, scan, scanType(scan, to), from, RejectionReason.forStatus(status), at));
+			registerEvent(new ScanRejected(lotId, scan, scanType(scan, to), from, RejectionReason.forStatus(current), at));
 			return;
 		}
 		correctLocation(scan, at);
@@ -131,7 +132,7 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 
 	/** Any status may change to any other. */
 	public void changeStatus(LotStatus status, Instant at) {
-		this.status = Objects.requireNonNull(status);
+		this.status = Objects.requireNonNull(status).name();
 		this.updatedAt = at;
 	}
 
@@ -171,7 +172,7 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 	}
 
 	public LotStatus getStatus() {
-		return status;
+		return LotStatus.valueOf(status);
 	}
 
 	public boolean isOnHold() {

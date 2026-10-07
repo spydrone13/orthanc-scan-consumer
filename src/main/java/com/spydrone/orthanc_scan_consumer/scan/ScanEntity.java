@@ -4,8 +4,6 @@ import java.time.Instant;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -20,8 +18,8 @@ public class ScanEntity {
 	private String lotId;
 	private String destinationStage;
 	private String destinationWipLocation;
-	@Enumerated(EnumType.STRING)
-	private ScanType scanType;
+	/** A {@link ScanType} name, kept as a plain string so the column accepts values added later (see SchemaTest). */
+	private String scanType;
 	@Column(length = 2000)
 	private String note;
 	@Column(length = 2000)
@@ -39,7 +37,7 @@ public class ScanEntity {
 		entity.lotId = record.lotId();
 		entity.destinationStage = record.destinationStage();
 		entity.destinationWipLocation = record.destinationWipLocation();
-		entity.scanType = record.scanType();
+		entity.scanType = record.scanType() == null ? null : record.scanType().name();
 		entity.note = record.note();
 		entity.correctionReason = record.correctionReason();
 		entity.receivedAt = receivedAt;
@@ -71,7 +69,7 @@ public class ScanEntity {
 	}
 
 	public ScanType getScanType() {
-		return scanType;
+		return scanType == null ? null : ScanType.valueOf(scanType);
 	}
 
 	public String getNote() {
