@@ -52,12 +52,26 @@ class LotStageControllerTest {
 
 		assertThat(body).startsWith("{\"intake\":{\"description\":\"Intake\",\"next-stages\"");
 		assertThat(body).contains("\"wip-locations\":{\"INTAKE-002\":{\"description\":\"Intake 2\"},\"INTAKE-001\"");
+		assertThat(body).doesNotContain("next-wip-locations");
+	}
+
+	@Test
+	void returnsAndUpdatesAllowedNextStageWipLocations() throws Exception {
+		Map<String, List<String>> nextWip = Map.of("wafer-prep", List.of("WAFER-PREP-001"));
+		given(service.update("intake", List.of("wafer-prep"), Map.of(), nextWip))
+				.willReturn(new LotStage("Intake", List.of("wafer-prep"), Map.of(), nextWip));
+
+		mvc.perform(put("/api/lot-stages/intake").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"next-stages\":[\"wafer-prep\"],\"wip-locations\":{},"
+								+ "\"next-wip-locations\":{\"wafer-prep\":[\"WAFER-PREP-001\"]}}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$['next-wip-locations']['wafer-prep']", contains("WAFER-PREP-001")));
 	}
 
 	@Test
 	void updatesStage() throws Exception {
 		Map<String, WipLocation> wip = Map.of("INTAKE-009", new WipLocation("Overflow"));
-		given(service.update("intake", List.of("wafer-prep"), wip))
+		given(service.update("intake", List.of("wafer-prep"), wip, null))
 				.willReturn(new LotStage("Intake", List.of("wafer-prep"), wip));
 
 		mvc.perform(put("/api/lot-stages/intake").contentType(MediaType.APPLICATION_JSON)
@@ -70,7 +84,7 @@ class LotStageControllerTest {
 
 	@Test
 	void validationErrorIsProblemDetail() throws Exception {
-		given(service.update(any(), any(), any()))
+		given(service.update(any(), any(), any(), any()))
 				.willThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown next stage: nope"));
 
 		mvc.perform(put("/api/lot-stages/intake").contentType(MediaType.APPLICATION_JSON)

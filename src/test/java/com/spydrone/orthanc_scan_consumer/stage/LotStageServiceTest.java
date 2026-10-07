@@ -45,7 +45,7 @@ class LotStageServiceTest {
 	void updatePersistsNextStagesAndWipLocations() {
 		LotStage updated = service.update("photolithography",
 				List.of("wet-etching", "dry-etching"),
-				wip("PHOTOLITHOGRAPHY-004", " Litho Bay 4 ", "  PHOTOLITHOGRAPHY-001 ", "Litho Bay 1", "", "dropped"));
+				wip("PHOTOLITHOGRAPHY-004", " Litho Bay 4 ", "  PHOTOLITHOGRAPHY-001 ", "Litho Bay 1", "", "dropped"), null);
 
 		assertThat(updated.description()).isEqualTo("Photolithography");
 		assertThat(updated.nextStages()).containsExactly("wet-etching", "dry-etching");
@@ -60,7 +60,7 @@ class LotStageServiceTest {
 		Map<String, WipLocation> input = wip("INTAKE-007", "  ", "BIN", null);
 		input.put("INTAKE-008", null);
 
-		LotStage updated = service.update("intake", List.of("wafer-prep"), input);
+		LotStage updated = service.update("intake", List.of("wafer-prep"), input, null);
 
 		assertThat(updated.wipLocations()).containsExactly(
 				Map.entry("INTAKE-007", new WipLocation("Intake 7")),
@@ -71,7 +71,7 @@ class LotStageServiceTest {
 
 	@Test
 	void updateAllowsClearingBothLists() {
-		LotStage updated = service.update("testing", List.of(), Map.of());
+		LotStage updated = service.update("testing", List.of(), Map.of(), null);
 
 		assertThat(updated.nextStages()).isEmpty();
 		assertThat(updated.wipLocations()).isEmpty();
@@ -79,30 +79,81 @@ class LotStageServiceTest {
 
 	@Test
 	void rejectsUnknownNextStage() {
-		assertBadRequest(() -> service.update("intake", List.of("nope"), Map.of()), "Unknown next stage: nope");
+		assertBadRequest(() -> service.update("intake", List.of("nope"), Map.of(), null), "Unknown next stage: nope");
 	}
 
 	@Test
 	void rejectsSelfAsNextStage() {
-		assertBadRequest(() -> service.update("intake", List.of("intake"), Map.of()), "own next stage");
+		assertBadRequest(() -> service.update("intake", List.of("intake"), Map.of(), null), "own next stage");
 	}
 
 	@Test
 	void rejectsDuplicateNextStages() {
-		assertBadRequest(() -> service.update("intake", List.of("wafer-prep", "wafer-prep"), Map.of()),
+		assertBadRequest(() -> service.update("intake", List.of("wafer-prep", "wafer-prep"), Map.of(), null),
 				"Duplicate next stage");
 	}
 
 	@Test
 	void rejectsDuplicateWipLocationsIgnoringCase() {
-		assertBadRequest(() -> service.update("intake", List.of(), wip("INTAKE-001", "a", "intake-001", "b")),
+		assertBadRequest(() -> service.update("intake", List.of(), wip("INTAKE-001", "a", "intake-001", "b"), null),
 				"Duplicate WIP location");
 	}
 
 	@Test
 	void rejectsWipLocationsThatAreDuplicatesOnceTrimmed() {
-		assertBadRequest(() -> service.update("intake", List.of(), wip("INTAKE-001", "a", " INTAKE-001 ", "b")),
+		assertBadRequest(() -> service.update("intake", List.of(), wip("INTAKE-001", "a", " INTAKE-001 ", "b"), null),
 				"Duplicate WIP location");
+	}
+
+	@Test
+	void seededStagesAllowAnyNextStageWipLocation() {
+		assertThat(service.getStages().values()).allSatisfy(stage -> assertThat(stage.nextWipLocations()).isEmpty());
+	}
+
+	@Test
+	void updatePersistsAllowedNextStageWipLocationsInNextStageOrder() {
+		Map<String, List<String>> nextWip = new LinkedHashMap<>();
+		nextWip.put("deposition", List.of());
+		nextWip.put("wet-etching", List.of("WET-ETCHING-003", "WET-ETCHING-001"));
+
+		LotStage updated = service.update("photolithography", List.of("wet-etching", "dry-etching", "deposition"),
+				Map.of(), nextWip);
+
+		assertThat(updated.nextWipLocations()).containsExactly(
+				Map.entry("wet-etching", List.of("WET-ETCHING-001", "WET-ETCHING-003")),
+				Map.entry("deposition", List.of()));
+		assertThat(service.getStages().get("photolithography")).isEqualTo(updated);
+	}
+
+	@Test
+	void allowedNextStageWipLocationsRemovedFromTheNextStageAreLeftOut() {
+		service.update("photolithography", List.of("wet-etching"), Map.of(),
+				Map.of("wet-etching", List.of("WET-ETCHING-001", "WET-ETCHING-002")));
+
+		service.update("wet-etching", List.of("photoresist-removal"), wip("WET-ETCHING-002", "Bay 2"), null);
+
+		assertThat(service.getStages().get("photolithography").nextWipLocations())
+				.containsExactly(Map.entry("wet-etching", List.of("WET-ETCHING-002")));
+	}
+
+	@Test
+	void rejectsAllowedWipLocationsForAStageThatIsNotNext() {
+		assertBadRequest(() -> service.update("photolithography", List.of("wet-etching"), Map.of(),
+				Map.of("dry-etching", List.of("DRY-ETCHING-001"))), "dry-etching is not a next stage");
+	}
+
+	@Test
+	void rejectsAllowedWipLocationNotInTheNextStage() {
+		assertBadRequest(() -> service.update("photolithography", List.of("wet-etching"), Map.of(),
+				Map.of("wet-etching", List.of("DRY-ETCHING-001"))),
+				"Unknown WIP location DRY-ETCHING-001 in stage wet-etching");
+	}
+
+	@Test
+	void rejectsDuplicateAllowedWipLocations() {
+		assertBadRequest(() -> service.update("photolithography", List.of("wet-etching"), Map.of(),
+				Map.of("wet-etching", List.of("WET-ETCHING-001", "WET-ETCHING-001"))),
+				"Duplicate WIP location for wet-etching");
 	}
 
 	private static Map<String, WipLocation> wip(String... idsAndDescriptions) {
@@ -115,7 +166,7 @@ class LotStageServiceTest {
 
 	@Test
 	void unknownStageIsNotFound() {
-		assertThatThrownBy(() -> service.update("nope", List.of(), Map.of()))
+		assertThatThrownBy(() -> service.update("nope", List.of(), Map.of(), null))
 				.isInstanceOfSatisfying(ResponseStatusException.class,
 						e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
 	}

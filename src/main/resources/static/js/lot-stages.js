@@ -12,7 +12,11 @@ const els = {
   noMatch: document.getElementById('no-match'),
 };
 
-/** Stages in process order: { id, description, nextStages, wipLocations: [{ id, description }] }. */
+/**
+ * Stages in process order: { id, description, nextStages, wipLocations: [{ id, description }],
+ * nextWipLocations: { nextStageId: [wipId] } }. A next stage missing from nextWipLocations allows
+ * any of its WIP locations; one listed allows only those (none: the stage itself only).
+ */
 let stages = [];
 /** Id of the stage being edited, or null. Only one row is editable at a time. */
 let editingId = null;
@@ -52,7 +56,12 @@ function toStage(id, s) {
       id: wipId,
       description: w?.description || wipId,
     })),
+    nextWipLocations: s['next-wip-locations'] ?? {},
   };
+}
+
+function wipLocationsOf(id) {
+  return stages.find(s => s.id === id)?.wipLocations ?? [];
 }
 
 async function load() {
@@ -106,14 +115,24 @@ function stageCell(stage) {
 
 function viewRow(stage) {
   const next = stage.nextStages.length
-    ? el('div', { class: 'chips' }, stage.nextStages.map(id =>
-        el('button', {
+    ? el('div', { class: 'chips' }, stage.nextStages.map(id => {
+        const allowedIds = stage.nextWipLocations[id];
+        const allowed = allowedIds ? wipLocationsOf(id).filter(loc => allowedIds.includes(loc.id)) : null;
+        const allowedNote = !allowed ? ''
+          : allowed.length ? `. Allowed WIP locations: ${allowed.map(loc => loc.description).join(', ')}`
+          : '. No WIP locations allowed';
+        return el('button', {
           type: 'button',
           class: 'chip chip--stage',
-          text: description(id),
-          title: `Go to ${description(id)}`,
+          title: `Go to ${description(id)}${allowedNote}`,
           onclick: () => jumpTo(id),
-        })))
+        }, [
+          description(id),
+          ...(allowed
+            ? [el('span', { class: 'chip-note', text: `· ${allowed.length} of ${wipLocationsOf(id).length} WIP` })]
+            : []),
+        ]);
+      }))
     : el('span', { class: 'final', text: 'Final stage' });
 
   const wip = stage.wipLocations.length
@@ -150,21 +169,74 @@ function viewRow(stage) {
 
 function editRow(stage) {
   const checked = new Set(stage.nextStages);
+  // Next stage id → Set of allowed WIP ids; a next stage without an entry allows any.
+  const nextWip = new Map(Object.entries(stage.nextWipLocations).map(([id, ids]) => [id, new Set(ids)]));
   const wip = stage.wipLocations.map(w => ({ ...w }));
 
   const error = el('div', { class: 'row-error', role: 'alert' });
 
-  const nextOptions = el('fieldset', { class: 'next-options' }, [
-    el('legend', { class: 'visually-hidden', text: `Valid next stages for ${stage.description}` }),
-    ...stages.filter(s => s.id !== stage.id).map(s =>
+  // Each next stage's checkbox, and once checked, which of its WIP locations a lot may go to.
+  const nextOption = s => {
+    const group = el('div', {
+      class: 'next-wip',
+      role: 'group',
+      'aria-label': `WIP locations allowed in ${s.description}`,
+    });
+    const renderGroup = () => {
+      const locations = s.wipLocations;
+      const allowed = nextWip.get(s.id);
+      if (!checked.has(s.id) || locations.length === 0) {
+        group.replaceChildren();
+        return;
+      }
+      group.replaceChildren(
+        el('label', {}, [
+          el('input', {
+            type: 'checkbox',
+            checked: !allowed,
+            onchange: e => {
+              if (e.target.checked) nextWip.delete(s.id);
+              else nextWip.set(s.id, new Set(locations.map(loc => loc.id)));
+              renderGroup();
+              group.querySelector('input')?.focus();
+            },
+          }),
+          'Any WIP location',
+        ]),
+        ...(allowed
+          ? locations.map(loc =>
+              el('label', { class: 'next-wip-location', title: loc.id }, [
+                el('input', {
+                  type: 'checkbox',
+                  checked: allowed.has(loc.id),
+                  onchange: e => (e.target.checked ? allowed.add(loc.id) : allowed.delete(loc.id)),
+                }),
+                loc.description,
+              ]))
+          : []),
+      );
+    };
+    renderGroup();
+    return el('div', { class: 'next-option' }, [
       el('label', {}, [
         el('input', {
           type: 'checkbox',
           checked: checked.has(s.id),
-          onchange: e => (e.target.checked ? checked.add(s.id) : checked.delete(s.id)),
+          onchange: e => {
+            if (e.target.checked) checked.add(s.id);
+            else checked.delete(s.id);
+            renderGroup();
+          },
         }),
         s.description,
-      ])),
+      ]),
+      group,
+    ]);
+  };
+
+  const nextOptions = el('fieldset', { class: 'next-options' }, [
+    el('legend', { class: 'visually-hidden', text: `Valid next stages for ${stage.description}` }),
+    ...stages.filter(s => s.id !== stage.id).map(nextOption),
   ]);
 
   // One line per WIP location: fixed id, editable description, remove button.
@@ -241,6 +313,10 @@ function editRow(stage) {
     try {
       // Send next stages in process order, regardless of click order.
       const nextStages = stages.filter(s => checked.has(s.id)).map(s => s.id);
+      // Only checked next stages with "Any WIP location" unticked, in the next stage's WIP order.
+      const nextWipLocations = Object.fromEntries(nextStages
+        .filter(id => nextWip.has(id) && wipLocationsOf(id).length > 0)
+        .map(id => [id, wipLocationsOf(id).filter(loc => nextWip.get(id).has(loc.id)).map(loc => loc.id)]));
       const res = await fetch(`${API}/${encodeURIComponent(stage.id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -248,6 +324,7 @@ function editRow(stage) {
           'next-stages': nextStages,
           // A blank description is stored as unset, and the server shows the default.
           'wip-locations': Object.fromEntries(wip.map(w => [w.id, { description: w.description.trim() }])),
+          'next-wip-locations': nextWipLocations,
         }),
       });
       if (!res.ok) throw new Error(await errorMessage(res));

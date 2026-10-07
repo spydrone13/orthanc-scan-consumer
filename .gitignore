@@ -34,3 +34,7 @@ build/
 
 ### Local H2 database ###
 /data/
+
+### Local config (see README) ###
+application-secrets.properties
+application-local.properties

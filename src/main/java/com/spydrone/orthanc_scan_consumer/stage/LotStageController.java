@@ -26,6 +26,6 @@ public class LotStageController {
 
 	@PutMapping("/{id}")
 	public LotStage updateLotStage(@PathVariable String id, @RequestBody LotStageUpdate update) {
-		return lotStageService.update(id, update.nextStages(), update.wipLocations());
+		return lotStageService.update(id, update.nextStages(), update.wipLocations(), update.nextWipLocations());
 	}
 }

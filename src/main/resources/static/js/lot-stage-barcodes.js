@@ -71,8 +71,10 @@ function section(heading, labels) {
   ]);
 }
 
-function wipLabels(stage) {
+/** allowedIds limits the labels to those WIP locations; undefined means all of them. */
+function wipLabels(stage, allowedIds) {
   return Object.entries(stage['wip-locations'] ?? {})
+    .filter(([wipId]) => !allowedIds || allowedIds.includes(wipId))
     .map(([wipId, w]) => label(w?.description || wipId, wipId));
 }
 
@@ -109,7 +111,7 @@ async function load() {
 
   const nextIds = (stage['next-stages'] ?? []).filter(id => stages[id]);
   // This stage's WIP locations first, then one section per next stage: its move-to-stage
-  // barcode followed by its WIP locations.
+  // barcode followed by the WIP locations allowed there.
   const sections = [];
   const ownWip = wipLabels(stage);
   if (ownWip.length) {
@@ -117,7 +119,10 @@ async function load() {
   }
   for (const id of nextIds) {
     const next = stages[id];
-    sections.push(section(`Next Stage: ${next.description}`, [label(next.description, id), ...wipLabels(next)]));
+    sections.push(section(`Next Stage: ${next.description}`, [
+      label(next.description, id),
+      ...wipLabels(next, stage['next-wip-locations']?.[id]),
+    ]));
   }
 
   els.status.textContent = '';

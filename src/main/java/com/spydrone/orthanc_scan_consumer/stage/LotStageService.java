@@ -23,7 +23,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The lot-stage graph, stored in the database. Seeded from classpath:lot-stages.json when the
- * table is empty; after that, only next stages and WIP locations change, through {@link #update}.
+ * table is empty; after that, only next stages and WIP locations (a stage's own, and those allowed
+ * in each next stage) change, through {@link #update}.
  */
 @Service
 public class LotStageService {
@@ -54,18 +55,38 @@ public class LotStageService {
 		log.info("Seeded {} lot stages from {}", entities.size(), SEED_RESOURCE);
 	}
 
-	/** All stages keyed by id, in process order. */
+	/**
+	 * All stages keyed by id, in process order. Allowed next-stage WIP locations that the next stage
+	 * no longer has are left out.
+	 */
 	@Transactional(readOnly = true)
 	public Map<String, LotStage> getStages() {
 		Map<String, LotStage> stages = new LinkedHashMap<>();
 		for (LotStageEntity entity : repository.findAllByOrderByPositionAsc()) {
 			stages.put(entity.getId(), entity.toLotStage());
 		}
+		stages.replaceAll((id, stage) -> withoutRemovedNextWipLocations(stage, stages));
 		return stages;
 	}
 
+	private static LotStage withoutRemovedNextWipLocations(LotStage stage, Map<String, LotStage> stages) {
+		Map<String, List<String>> nextWip = new LinkedHashMap<>();
+		stage.nextWipLocations().forEach((nextId, wipIds) -> {
+			LotStage next = stages.get(nextId);
+			Set<String> existing = next == null ? Set.of() : next.wipLocations().keySet();
+			nextWip.put(nextId, wipIds.stream().filter(existing::contains).toList());
+		});
+		return new LotStage(stage.description(), stage.nextStages(), stage.wipLocations(), nextWip);
+	}
+
+	/**
+	 * Replaces a stage's next stages, WIP locations and the WIP locations allowed in each next stage
+	 * ({@code null} or a missing next stage: any). Allowed WIP locations come back in the next
+	 * stage's display order.
+	 */
 	@Transactional
-	public LotStage update(String id, List<String> nextStages, Map<String, WipLocation> wipLocations) {
+	public LotStage update(String id, List<String> nextStages, Map<String, WipLocation> wipLocations,
+			Map<String, List<String>> nextWipLocations) {
 		LotStageEntity entity = repository.findById(id)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown stage: " + id));
 
@@ -96,7 +117,29 @@ public class LotStageService {
 		}
 		requireNoDuplicates(List.copyOf(wip.keySet()), "WIP location");
 
-		entity.replace(next, wip);
+		Map<String, List<String>> nextWip = nextWipLocations == null ? Map.of() : nextWipLocations;
+		Map<String, List<String>> allowed = new LinkedHashMap<>();
+		for (String nextId : nextWip.keySet()) {
+			if (!next.contains(nextId)) {
+				throw badRequest(nextId + " is not a next stage");
+			}
+		}
+		for (String nextId : next) {
+			List<String> wipIds = nextWip.get(nextId);
+			if (wipIds == null) {
+				continue;
+			}
+			Set<String> nextStageWip = repository.findById(nextId).orElseThrow().toLotStage().wipLocations().keySet();
+			for (String wipId : wipIds) {
+				if (!nextStageWip.contains(wipId)) {
+					throw badRequest("Unknown WIP location " + wipId + " in stage " + nextId);
+				}
+			}
+			requireNoDuplicates(wipIds, "WIP location for " + nextId);
+			allowed.put(nextId, nextStageWip.stream().filter(wipIds::contains).toList());
+		}
+
+		entity.replace(next, wip, allowed);
 		return entity.toLotStage();
 	}
 
