@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotRepository;
+import com.spydrone.orthanc_scan_consumer.lot.domain.StageRoutes;
 
 /**
  * The write side for lots: each command loads the aggregate, calls one domain method and saves it.
@@ -15,14 +16,16 @@ import com.spydrone.orthanc_scan_consumer.lot.domain.LotRepository;
 public class LotCommandHandler {
 
 	private final LotRepository lots;
+	private final StageRoutes routes;
 
-	public LotCommandHandler(LotRepository lots) {
+	public LotCommandHandler(LotRepository lots, StageRoutes routes) {
 		this.lots = lots;
+		this.routes = routes;
 	}
 
 	public Lot handle(ApplyScan command) {
 		Lot lot = lots.findById(command.lotId()).orElseGet(() -> Lot.firstScanned(command.lotId()));
-		lot.applyScan(command.scan(), command.at());
+		lot.applyScan(command.scan(), routes, command.at());
 		return lots.save(lot);
 	}
 

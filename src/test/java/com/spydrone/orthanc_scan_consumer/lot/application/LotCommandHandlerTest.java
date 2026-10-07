@@ -19,10 +19,12 @@ import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEvent;
 import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEventRepository;
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
+import com.spydrone.orthanc_scan_consumer.stage.LotStageRoutes;
+import com.spydrone.orthanc_scan_consumer.stage.LotStageService;
 
 /** Commands through the real repository, domain-event publishing and history recorder. */
 @DataJpaTest
-@Import({ LotCommandHandler.class, LotHistoryRecorder.class })
+@Import({ LotCommandHandler.class, LotHistoryRecorder.class, LotStageRoutes.class, LotStageService.class })
 class LotCommandHandlerTest {
 
 	private static final Instant NOW = Instant.parse("2026-10-05T12:00:00Z");
@@ -95,6 +97,7 @@ class LotCommandHandlerTest {
 	}
 
 	private static ScanRecord scan(String clientId, String stage, String destinationStage, String destinationWip) {
-		return new ScanRecord(clientId, "u", stage, "L1", destinationStage, destinationWip, ScanType.INFORMATIONAL, "n");
+		return new ScanRecord(clientId, "u", stage, "L1", destinationStage, destinationWip, ScanType.INFORMATIONAL, "n",
+				null);
 	}
 }

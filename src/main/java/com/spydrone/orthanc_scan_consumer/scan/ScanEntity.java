@@ -24,6 +24,8 @@ public class ScanEntity {
 	private ScanType scanType;
 	@Column(length = 2000)
 	private String note;
+	@Column(length = 2000)
+	private String correctionReason;
 	private Instant receivedAt;
 
 	protected ScanEntity() {
@@ -39,6 +41,7 @@ public class ScanEntity {
 		entity.destinationWipLocation = record.destinationWipLocation();
 		entity.scanType = record.scanType();
 		entity.note = record.note();
+		entity.correctionReason = record.correctionReason();
 		entity.receivedAt = receivedAt;
 		return entity;
 	}
@@ -73,6 +76,10 @@ public class ScanEntity {
 
 	public String getNote() {
 		return note;
+	}
+
+	public String getCorrectionReason() {
+		return correctionReason;
 	}
 
 	public Instant getReceivedAt() {

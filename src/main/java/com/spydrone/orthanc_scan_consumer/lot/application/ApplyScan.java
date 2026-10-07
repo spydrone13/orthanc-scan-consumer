@@ -10,6 +10,7 @@ public record ApplyScan(String lotId, Scan scan, Instant at) {
 
 	public static ApplyScan from(ScanRecord record, Instant at) {
 		return new ApplyScan(record.lotId(), new Scan(record.clientId(), record.userName(), record.currentStage(),
-				record.destinationStage(), record.destinationWipLocation(), record.note()), at);
+				record.destinationStage(), record.destinationWipLocation(), record.note(), record.correctionReason()),
+				at);
 	}
 }

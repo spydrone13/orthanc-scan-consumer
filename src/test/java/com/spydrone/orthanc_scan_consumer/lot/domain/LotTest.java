@@ -16,12 +16,15 @@ class LotTest {
 
 	private static final Instant EARLIER = Instant.parse("2026-10-05T11:00:00Z");
 	private static final Instant NOW = Instant.parse("2026-10-05T12:00:00Z");
+	/** S1 → S2 and S2 → S3, with any WIP location except WIP-X. */
+	private static final StageRoutes ROUTES = (from, to, wip) ->
+			(from.equals("S1") && to.equals("S2") || from.equals("S2") && to.equals("S3")) && !"WIP-X".equals(wip);
 
 	@Test
 	void firstScanCreatesActiveLotInDestination() {
 		Lot lot = Lot.firstScanned("L1");
 
-		lot.applyScan(scan("S1", "S2", null), NOW);
+		lot.applyScan(scan("S1", "S2", null), ROUTES, NOW);
 
 		assertThat(lot.getLotId()).isEqualTo("L1");
 		assertThat(lot.location()).isEqualTo(new Location("S2", null));
@@ -37,7 +40,7 @@ class LotTest {
 	void stageAndWipLocationMovesIntoWipLocationInNextStage() {
 		Lot lot = lotAt("S1", "WIP-1");
 
-		lot.applyScan(scan("S1", "S2", "WIP-2"), NOW);
+		lot.applyScan(scan("S1", "S2", "WIP-2"), ROUTES, NOW);
 
 		assertThat(lot.location()).isEqualTo(new Location("S2", "WIP-2"));
 		ScanApplied event = (ScanApplied) lastEvent(lot);
@@ -53,7 +56,7 @@ class LotTest {
 	void stageOnlyMovesStageAndClearsWip() {
 		Lot lot = lotAt("S1", "WIP-1");
 
-		lot.applyScan(scan("S1", "S2", null), NOW);
+		lot.applyScan(scan("S1", "S2", null), ROUTES, NOW);
 
 		assertThat(lot.location()).isEqualTo(new Location("S2", null));
 		assertThat(((ScanApplied) lastEvent(lot)).scanType()).isEqualTo(ScanType.TRANSITIONAL);
@@ -63,7 +66,7 @@ class LotTest {
 	void wipLocationOnlySetsWipWithinScanStage() {
 		Lot lot = lotAt("S1", null);
 
-		lot.applyScan(scan("S1", null, "WIP-2"), NOW);
+		lot.applyScan(scan("S1", null, "WIP-2"), ROUTES, NOW);
 
 		assertThat(lot.location()).isEqualTo(new Location("S1", "WIP-2"));
 		assertThat(((ScanApplied) lastEvent(lot)).scanType()).isEqualTo(ScanType.INFORMATIONAL);
@@ -73,7 +76,7 @@ class LotTest {
 	void noDestinationLeavesLotWhereItIs() {
 		Lot lot = lotAt("S1", "WIP-1");
 
-		lot.applyScan(scan("S5", null, null), NOW);
+		lot.applyScan(scan("S1", null, null), ROUTES, NOW);
 
 		assertThat(lot.location()).isEqualTo(new Location("S1", "WIP-1"));
 		assertThat(((ScanApplied) lastEvent(lot)).to()).isEqualTo(new Location("S1", "WIP-1"));
@@ -83,7 +86,7 @@ class LotTest {
 	void noDestinationOnFirstScanPlacesLotInScanStage() {
 		Lot lot = Lot.firstScanned("L1");
 
-		lot.applyScan(scan("S1", null, null), NOW);
+		lot.applyScan(scan("S1", null, null), ROUTES, NOW);
 
 		assertThat(lot.location()).isEqualTo(new Location("S1", null));
 	}
@@ -92,18 +95,131 @@ class LotTest {
 	void blankDestinationsAreIgnoredAndValuesTrimmed() {
 		Lot lot = lotAt("S1", "WIP-1");
 
-		lot.applyScan(scan("S1", "  ", " WIP-2 "), NOW);
+		lot.applyScan(scan("S1", "  ", " WIP-2 "), ROUTES, NOW);
 
 		assertThat(lot.location()).isEqualTo(new Location("S1", "WIP-2"));
 	}
 
 	@Test
-	void scanFromAnotherStageIsStillApplied() {
+	void moveToANextStageIsNotFlagged() {
 		Lot lot = lotAt("S1", "WIP-1");
 
-		lot.applyScan(scan("S5", null, "WIP-9"), NOW);
+		lot.applyScan(scan("S1", "S2", "WIP-2"), ROUTES, NOW);
 
+		assertThat(events(lot)).hasSize(2);
+		assertThat(((ScanApplied) lastEvent(lot)).discrepancy()).isNull();
+	}
+
+	@Test
+	void moveToAStageThatIsNotNextIsAppliedButFlagged() {
+		Lot lot = lotAt("S1", "WIP-1");
+
+		lot.applyScan(scan("S1", "S3", null), ROUTES, NOW);
+
+		assertThat(lot.location()).isEqualTo(new Location("S3", null));
+		assertThat(((ScanApplied) lastEvent(lot)).discrepancy()).isEqualTo(Discrepancy.OFF_ROUTE);
+	}
+
+	@Test
+	void moveToAWipLocationNotAllowedInTheNextStageIsFlagged() {
+		Lot lot = lotAt("S1", "WIP-1");
+
+		lot.applyScan(scan("S1", "S2", "WIP-X"), ROUTES, NOW);
+
+		assertThat(lot.location()).isEqualTo(new Location("S2", "WIP-X"));
+		assertThat(((ScanApplied) lastEvent(lot)).discrepancy()).isEqualTo(Discrepancy.OFF_ROUTE);
+	}
+
+	@Test
+	void moveWithinTheScanStageIsNeverOffRoute() {
+		Lot lot = lotAt("S3", "WIP-1");
+
+		lot.applyScan(scan("S3", null, "WIP-X"), ROUTES, NOW);
+
+		assertThat(((ScanApplied) lastEvent(lot)).discrepancy()).isNull();
+	}
+
+	@Test
+	void missedScanUpstreamIsCorrectedToTheScanStageAndFlagged() {
+		Lot lot = lotAt("S1", "WIP-1");
+
+		lot.applyScan(scan("S2", "S3", null), ROUTES, NOW);
+
+		List<?> events = events(lot);
+		LocationCorrected correction = (LocationCorrected) events.get(events.size() - 2);
+		assertThat(correction.from()).isEqualTo(new Location("S1", "WIP-1"));
+		assertThat(correction.to()).isEqualTo(new Location("S2", null));
+		assertThat(correction.discrepancy()).isEqualTo(Discrepancy.LOCATION_MISMATCH_UNCONFIRMED);
+		assertThat(correction.correctsClientId()).isEqualTo("setup");
+		ScanApplied move = (ScanApplied) lastEvent(lot);
+		assertThat(move.from()).isEqualTo(new Location("S2", null));
+		assertThat(move.to()).isEqualTo(new Location("S3", null));
+		assertThat(move.discrepancy()).isNull();
+		assertThat(lot.location()).isEqualTo(new Location("S3", null));
+	}
+
+	@Test
+	void confirmedCorrectionIsFlaggedAsCorrected() {
+		Lot lot = lotAt("S5", null);
+
+		lot.applyScan(new Scan("abc", "u", "S2", "S3", null, "n", "It was on the S2 rack"), ROUTES, NOW);
+
+		List<?> events = events(lot);
+		assertThat(((LocationCorrected) events.get(events.size() - 2)).discrepancy())
+				.isEqualTo(Discrepancy.LOCATION_CORRECTED);
+	}
+
+	@Test
+	void correctedMoveIsCheckedFromTheScanStage() {
+		Lot lot = lotAt("S5", null);
+
+		lot.applyScan(scan("S1", "S3", null), ROUTES, NOW);
+
+		assertThat(((ScanApplied) lastEvent(lot)).discrepancy()).isEqualTo(Discrepancy.OFF_ROUTE);
+	}
+
+	@Test
+	void mismatchWithoutDestinationLeavesLotAtTheScanStage() {
+		Lot lot = lotAt("S1", "WIP-1");
+
+		lot.applyScan(scan("S5", null, "WIP-9"), ROUTES, NOW);
+
+		assertThat(events(lot).get(events(lot).size() - 2)).isInstanceOf(LocationCorrected.class);
 		assertThat(lot.location()).isEqualTo(new Location("S5", "WIP-9"));
+	}
+
+	@Test
+	void sameMoveScannedAgainIsNotACorrection() {
+		Lot lot = lotAt("S2", null);
+
+		lot.applyScan(scan("S1", "S2", "WIP-2"), ROUTES, NOW);
+
+		assertThat(events(lot)).noneMatch(LocationCorrected.class::isInstance);
+		assertThat(lot.location()).isEqualTo(new Location("S2", "WIP-2"));
+	}
+
+	@Test
+	void heldLotIsCorrectedButNotMovedOn() {
+		Lot lot = lotAt("S1", "WIP-1");
+		lot.placeOnHold(EARLIER);
+
+		lot.applyScan(scan("S2", "S3", null), ROUTES, NOW);
+
+		List<?> events = events(lot);
+		assertThat(events.get(events.size() - 2)).isInstanceOf(LocationCorrected.class);
+		assertThat(((ScanRejected) lastEvent(lot)).reason()).isEqualTo(RejectionReason.LOT_ON_HOLD);
+		assertThat(lot.location()).isEqualTo(new Location("S2", null));
+	}
+
+	@Test
+	void inactiveLotIsNotCorrected() {
+		Lot lot = lotAt("S1", "WIP-1");
+		lot.changeStatus(LotStatus.CANCELED, EARLIER);
+
+		lot.applyScan(scan("S2", "S3", null), ROUTES, NOW);
+
+		assertThat(events(lot)).noneMatch(LocationCorrected.class::isInstance);
+		assertThat(lot.location()).isEqualTo(new Location("S1", "WIP-1"));
 	}
 
 	@Test
@@ -111,7 +227,7 @@ class LotTest {
 		Lot lot = lotAt("S1", "WIP-1");
 		lot.changeStatus(LotStatus.CANCELED, EARLIER);
 
-		lot.applyScan(scan("S1", "S2", null), NOW);
+		lot.applyScan(scan("S1", "S2", null), ROUTES, NOW);
 
 		assertThat(lot.location()).isEqualTo(new Location("S1", "WIP-1"));
 		assertThat(lot.getUpdatedAt()).isEqualTo(EARLIER);
@@ -126,7 +242,7 @@ class LotTest {
 		Lot lot = lotAt("S1", "WIP-1");
 		lot.changeStatus(LotStatus.DESTROYED, EARLIER);
 
-		lot.applyScan(scan("S1", "S1", "WIP-2"), NOW);
+		lot.applyScan(scan("S1", "S1", "WIP-2"), ROUTES, NOW);
 
 		assertThat(lot.location().wipLocation()).isEqualTo("WIP-1");
 		assertThat(((ScanRejected) lastEvent(lot)).reason()).isEqualTo(RejectionReason.LOT_DESTROYED);
@@ -138,7 +254,7 @@ class LotTest {
 		lot.changeStatus(LotStatus.COMPLETE, EARLIER);
 		lot.placeOnHold(EARLIER);
 
-		lot.applyScan(scan("S1", "S2", null), NOW);
+		lot.applyScan(scan("S1", "S2", null), ROUTES, NOW);
 
 		assertThat(((ScanRejected) lastEvent(lot)).reason()).isEqualTo(RejectionReason.LOT_COMPLETE);
 	}
@@ -148,7 +264,7 @@ class LotTest {
 		Lot lot = lotAt("S1", "WIP-1");
 		lot.placeOnHold(EARLIER);
 
-		lot.applyScan(scan("S1", "S2", "WIP-2"), NOW);
+		lot.applyScan(scan("S1", "S2", "WIP-2"), ROUTES, NOW);
 
 		assertThat(lot.location()).isEqualTo(new Location("S1", "WIP-1"));
 		assertThat(lot.getUpdatedAt()).isEqualTo(EARLIER);
@@ -162,7 +278,7 @@ class LotTest {
 		Lot lot = lotAt("S1", "WIP-1");
 		lot.placeOnHold(EARLIER);
 
-		lot.applyScan(scan("S1", "S1", "WIP-2"), NOW);
+		lot.applyScan(scan("S1", "S1", "WIP-2"), ROUTES, NOW);
 
 		assertThat(lot.location()).isEqualTo(new Location("S1", "WIP-2"));
 		assertThat(lastEvent(lot)).isInstanceOf(ScanApplied.class);
@@ -185,19 +301,23 @@ class LotTest {
 	}
 
 	private static Scan scan(String stage, String destinationStage, String destinationWipLocation) {
-		return new Scan("abc", "u", stage, destinationStage, destinationWipLocation, "n");
+		return new Scan("abc", "u", stage, destinationStage, destinationWipLocation, "n", null);
 	}
 
 	private static Lot lotAt(String stage, String wipLocation) {
 		Lot lot = Lot.firstScanned("L1");
-		lot.applyScan(new Scan("setup", "u", stage, stage, wipLocation, ""), EARLIER);
+		lot.applyScan(new Scan("setup", "u", stage, stage, wipLocation, "", null), ROUTES, EARLIER);
 		return lot;
 	}
 
 	/** AbstractAggregateRoot keeps registered events behind a protected accessor. */
-	private static Object lastEvent(Lot lot) {
+	private static List<?> events(Lot lot) {
 		Collection<?> events = ReflectionTestUtils.invokeMethod(lot, "domainEvents");
-		List<?> list = List.copyOf(events);
+		return List.copyOf(events);
+	}
+
+	private static Object lastEvent(Lot lot) {
+		List<?> list = events(lot);
 		return list.get(list.size() - 1);
 	}
 }

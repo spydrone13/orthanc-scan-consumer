@@ -1,6 +1,8 @@
 package com.spydrone.orthanc_scan_consumer.lot.application;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,5 +42,16 @@ public class LotQueries {
 			throw new LotNotFoundException(lotId);
 		}
 		return history.findByLotIdOrderByOccurredAtDesc(lotId).stream().map(LotStageEventView::of).toList();
+	}
+
+	/** History rows flagged for review across all lots, newest first; all of them when since is null. */
+	public List<LotExceptionView> exceptions(Instant since) {
+		return history.findByExceptionIsNotNullAndOccurredAtGreaterThanEqualOrderByOccurredAtDesc(
+						since == null ? Instant.EPOCH : since).stream()
+				.map(row -> new LotExceptionView(LotStageEventView.of(row), Optional.ofNullable(row.getCorrectsClientId())
+						.flatMap(history::findById)
+						.map(LotStageEventView::of)
+						.orElse(null)))
+				.toList();
 	}
 }

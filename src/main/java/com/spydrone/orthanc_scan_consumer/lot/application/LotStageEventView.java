@@ -2,6 +2,7 @@ package com.spydrone.orthanc_scan_consumer.lot.application;
 
 import java.time.Instant;
 
+import com.spydrone.orthanc_scan_consumer.lot.domain.Discrepancy;
 import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEvent;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 
@@ -17,11 +18,13 @@ public record LotStageEventView(
 		String toWipLocation,
 		String note,
 		Instant occurredAt,
-		String rejectedReason) {
+		String rejectedReason,
+		Discrepancy exception,
+		String correctsClientId) {
 
 	public static LotStageEventView of(LotStageEvent row) {
 		return new LotStageEventView(row.getClientId(), row.getLotId(), row.getScanType(), row.getUserName(),
 				row.getFromStage(), row.getFromWipLocation(), row.getToStage(), row.getToWipLocation(), row.getNote(),
-				row.getOccurredAt(), row.getRejectedReason());
+				row.getOccurredAt(), row.getRejectedReason(), row.getException(), row.getCorrectsClientId());
 	}
 }

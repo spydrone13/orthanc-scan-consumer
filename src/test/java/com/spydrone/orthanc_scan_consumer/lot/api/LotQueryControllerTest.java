@@ -68,7 +68,7 @@ class LotQueryControllerTest {
 	@Test
 	void listsLotEvents() throws Exception {
 		given(queries.history("L1")).willReturn(List.of(new LotStageEventView("abc", "L1", ScanType.INFORMATIONAL,
-				"u", null, null, "S1", "WIP-1", "n", NOW, null)));
+				"u", null, null, "S1", "WIP-1", "n", NOW, null, null, null)));
 
 		mvc.perform(get("/api/lots/L1/events"))
 				.andExpect(status().isOk())

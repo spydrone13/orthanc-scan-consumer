@@ -2,7 +2,6 @@ package com.spydrone.orthanc_scan_consumer.lot.domain;
 
 import java.time.Instant;
 import java.util.Objects;
-import java.util.Optional;
 
 import org.hibernate.annotations.ColumnDefault;
 import org.springframework.data.domain.AbstractAggregateRoot;
@@ -40,6 +39,8 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 	@ColumnDefault("false")
 	private boolean onHold;
 	private Instant updatedAt;
+	/** The scan that put the lot where it is; null for lots stored before this was kept. */
+	private String lastScanClientId;
 
 	protected Lot() {
 	}
@@ -62,23 +63,70 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 	 * <li>WIP location only: into that WIP location in the scan's stage
 	 * <li>neither: the lot stays where it is (or, if new, goes to the scan's stage)
 	 * </ul>
-	 * A lot that isn't active can't be scanned at all, and a held lot can't leave its stage.
+	 * The checks, in order:
+	 * <ol>
+	 * <li>A lot that isn't active can't be scanned at all.
+	 * <li>The scan's stage is where the lot physically is. If the records have it at another stage,
+	 * it's moved there first ({@link LocationCorrected}, flagged for review).
+	 * <li>A held lot can't leave its stage.
+	 * <li>A move to another stage that {@code routes} doesn't allow is applied but flagged
+	 * {@link Discrepancy#OFF_ROUTE}.
+	 * </ol>
 	 */
-	public void applyScan(Scan scan, Instant at) {
-		Location from = location();
-		Location to = destination(scan, from);
-		ScanType scanType = Objects.equals(to.stage(), scan.scanStage())
-				? ScanType.INFORMATIONAL
-				: ScanType.TRANSITIONAL;
-
-		Optional<RejectionReason> rejection = rejection(from, to);
-		if (rejection.isPresent()) {
-			registerEvent(new ScanRejected(lotId, scan, scanType, from, rejection.get(), at));
+	public void applyScan(Scan scan, StageRoutes routes, Instant at) {
+		if (status != LotStatus.ACTIVE) {
+			Location from = location();
+			Location to = destination(scan, from);
+			registerEvent(new ScanRejected(lotId, scan, scanType(scan, to), from, RejectionReason.forStatus(status), at));
 			return;
 		}
+		correctLocation(scan, at);
+
+		Location from = location();
+		Location to = destination(scan, from);
+		if (onHold && !Objects.equals(to.stage(), from.stage())) {
+			registerEvent(new ScanRejected(lotId, scan, scanType(scan, to), from, RejectionReason.LOT_ON_HOLD, at));
+			return;
+		}
+		Discrepancy discrepancy = isOffRoute(scan, to, routes) ? Discrepancy.OFF_ROUTE : null;
 		this.location = to;
+		this.lastScanClientId = scan.clientId();
 		this.updatedAt = at;
-		registerEvent(new ScanApplied(lotId, scan, scanType, from, to, at));
+		registerEvent(new ScanApplied(lotId, scan, scanType(scan, to), from, to, discrepancy, at));
+	}
+
+	/**
+	 * Moves the lot to the scan's stage when the records have it at another one. Not when the
+	 * records already have it at the scan's destination: that's the same move scanned again.
+	 */
+	private void correctLocation(Scan scan, Instant at) {
+		Location recorded = location();
+		String scanStage = blankToNull(scan.scanStage());
+		if (recorded.stage() == null || scanStage == null || recorded.stage().equals(scanStage)
+				|| recorded.stage().equals(blankToNull(scan.destinationStage()))) {
+			return;
+		}
+		Location corrected = new Location(scanStage, null);
+		Discrepancy discrepancy = blankToNull(scan.correctionReason()) != null
+				? Discrepancy.LOCATION_CORRECTED
+				: Discrepancy.LOCATION_MISMATCH_UNCONFIRMED;
+		registerEvent(new LocationCorrected(lotId, scan, recorded, corrected, discrepancy, lastScanClientId, at));
+		this.location = corrected;
+		this.lastScanClientId = scan.clientId();
+		this.updatedAt = at;
+	}
+
+	/** Moves within the scan's stage always follow the route; moves out of it must follow the stage graph. */
+	private static boolean isOffRoute(Scan scan, Location to, StageRoutes routes) {
+		String scanStage = blankToNull(scan.scanStage());
+		if (scanStage == null || Objects.equals(to.stage(), scanStage)) {
+			return false;
+		}
+		return !routes.allows(scanStage, to.stage(), to.wipLocation());
+	}
+
+	private static ScanType scanType(Scan scan, Location to) {
+		return Objects.equals(to.stage(), scan.scanStage()) ? ScanType.INFORMATIONAL : ScanType.TRANSITIONAL;
 	}
 
 	/** Any status may change to any other. */
@@ -108,17 +156,6 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 			return new Location(scan.scanStage(), destinationWipLocation);
 		}
 		return from;
-	}
-
-	/** Status first: a finished lot can't be scanned at all. Then hold: it can't leave its stage. */
-	private Optional<RejectionReason> rejection(Location from, Location to) {
-		if (status != LotStatus.ACTIVE) {
-			return Optional.of(RejectionReason.forStatus(status));
-		}
-		if (onHold && !Objects.equals(to.stage(), from.stage())) {
-			return Optional.of(RejectionReason.LOT_ON_HOLD);
-		}
-		return Optional.empty();
 	}
 
 	private static String blankToNull(String value) {

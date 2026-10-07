@@ -6,5 +6,8 @@ public enum ScanType {
 	@JsonProperty("transitional")
 	TRANSITIONAL,
 	@JsonProperty("informational")
-	INFORMATIONAL
+	INFORMATIONAL,
+	/** Only in lot history: the records were corrected to where a scan found the lot. */
+	@JsonProperty("correction")
+	CORRECTION
 }

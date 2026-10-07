@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+import com.spydrone.orthanc_scan_consumer.lot.domain.LocationCorrected;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ScanApplied;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ScanRejected;
 import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEvent;
@@ -24,7 +25,18 @@ public class LotHistoryRecorder {
 
 	@EventListener
 	public void on(ScanApplied event) {
+		if (event.discrepancy() != null) {
+			log.warn("Scan {} moved lot {} from {} to {}: {}", event.scan().clientId(), event.lotId(), event.from(),
+					event.to(), event.discrepancy());
+		}
 		history.save(LotStageEvent.applied(event));
+	}
+
+	@EventListener
+	public void on(LocationCorrected event) {
+		log.warn("Scan {} found lot {} at {}, not {}: {}", event.scan().clientId(), event.lotId(), event.to(),
+				event.from(), event.discrepancy());
+		history.save(LotStageEvent.corrected(event));
 	}
 
 	/** The producer rejects most of these up front; these slipped through while queued. */
