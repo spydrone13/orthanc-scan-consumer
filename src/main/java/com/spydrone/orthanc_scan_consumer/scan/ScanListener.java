@@ -35,6 +35,9 @@ public class ScanListener {
 			log.info("Skipping duplicate scan {}", record.clientId());
 			return;
 		}
+		if (record.lotId().equals("LOT-013")) {
+			throw new RuntimeException("Simulated exception for testing! Lot id: LOT-013");
+		}
 		Instant now = Instant.now();
 		repository.save(ScanEntity.from(record, now));
 		lotCommands.handle(ApplyScan.from(record, now));
