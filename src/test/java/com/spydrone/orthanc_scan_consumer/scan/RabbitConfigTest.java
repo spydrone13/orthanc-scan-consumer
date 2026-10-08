@@ -8,7 +8,10 @@ import static org.mockito.Mockito.verify;
 import java.nio.charset.StandardCharsets;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.DirectExchange;
@@ -59,5 +62,21 @@ class RabbitConfigTest {
 		assertThat(sent.getValue().getMessageProperties().<String>getHeader("x-exception-message")).isEqualTo("boom");
 		assertThat(sent.getValue().getMessageProperties().<String>getHeader(FailedScanRecoverer.FAILED_AT_HEADER))
 				.isNotNull();
+	}
+
+	@Test
+	@ExtendWith(OutputCaptureExtension.class)
+	void scanThatFailsEveryRetryIsLoggedWithItsStackTrace(CapturedOutput output) {
+		MessageRecoverer recoverer = config.scanRecoverer(mock(AmqpTemplate.class), "orthanc.scans.dlx",
+				"orthanc.scans.dlq");
+		Message message = new Message("{\"clientId\":\"abc\"}".getBytes(StandardCharsets.UTF_8),
+				new MessageProperties());
+
+		recoverer.recover(message, new IllegalStateException("boom"));
+
+		assertThat(output).contains("ERROR")
+				.contains("Scan failed after all retries; moving it to the dead-letter queue: {\"clientId\":\"abc\"}")
+				.contains("java.lang.IllegalStateException: boom")
+				.contains("at com.spydrone.orthanc_scan_consumer.scan.RabbitConfigTest");
 	}
 }
