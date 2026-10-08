@@ -88,12 +88,28 @@ The management UI is at http://localhost:15672 (guest / guest).
 
 A scan that throws while being processed is retried twice more (1s, then 2s later), each attempt in its own
 transaction that's rolled back on failure. If it still fails, or the message can't be read as a scan at all,
-it's rejected and RabbitMQ moves it to the dead-letter queue `orthanc.scans.dlq` (through the
-`orthanc.scans.dlx` exchange). Nothing is lost and the scans queue keeps moving.
+it goes to the dead-letter queue `orthanc.scans.dlq` (through the `orthanc.scans.dlx` exchange) with the
+exception message, stack trace and time. Nothing is lost and the scans queue keeps moving.
 
-In the management UI, open the dead-letter queue and use **Get messages** to see a failed scan; its `x-death`
-header records the queue it came from and when. To replay scans once the cause is fixed, use **Move messages**
-(shovel plugin) to send them back to `orthanc.scans`. Scans already stored are skipped, so replaying is safe.
+### Viewing and retrying
+
+Open http://localhost:3001/dead-letters. It lists the failed scans, oldest first, with the lot, user, time and
+reason (stack trace and raw message under each row). Once the cause is fixed:
+
+- **Retry** sends a scan back to `orthanc.scans`; **Retry all** sends them all. Scans already stored are
+  skipped, so retrying is always safe. A scan that fails again comes back to the list with the new reason.
+- **Discard** (click twice) removes a scan for good, e.g. a message that will never be readable. Its body is
+  logged at WARN.
+
+The same is available as an API: `GET /api/dead-letters`, `POST /api/dead-letters/{id}/retry`,
+`POST /api/dead-letters/retry`, `DELETE /api/dead-letters/{id}`. The id is the scan's `clientId`, or `sha-…`
+for a message that can't be read as a scan. Each call looks at the oldest 500 messages; with more than that in
+the queue, work through them in batches.
+
+As a fallback, the RabbitMQ management UI shows the same queue: **Get messages** with *Nack message requeue
+true* to look without removing. Its **Move messages** needs the shovel plugin
+(`docker exec rabbitmq rabbitmq-plugins enable rabbitmq_shovel rabbitmq_shovel_management`). If you publish a
+scan by hand, set the property `content_type` to `application/json`, or the consumer can't read it.
 
 ### Upgrading an existing broker
 

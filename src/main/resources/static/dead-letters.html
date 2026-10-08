@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Failed Scans</title>
+  <link rel="stylesheet" href="/css/lot-stages.css">
+  <script type="module" src="/js/dead-letters.js"></script>
+</head>
+<body>
+  <main class="page">
+    <div class="card">
+      <h1 class="card-title">Failed Scans</h1>
+      <p class="intro">
+        Scans the consumer gave up on after retrying. Fix the cause, then retry them; scans already
+        applied are skipped. Discard removes a scan for good.
+      </p>
+
+      <div class="toolbar">
+        <span id="count" class="count" aria-live="polite"></span>
+        <span class="toolbar-actions">
+          <button id="refresh" type="button" class="btn">Refresh</button>
+          <button id="retry-all" type="button" class="btn btn--primary" disabled>Retry all</button>
+        </span>
+      </div>
+
+      <div id="status" class="status" role="status"></div>
+
+      <div class="table-wrap" id="table-wrap" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Scan</th>
+              <th scope="col">Lot</th>
+              <th scope="col">User</th>
+              <th scope="col">Failed</th>
+              <th scope="col">Reason</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p id="empty" class="empty" hidden>No failed scans.</p>
+    </div>
+  </main>
+</body>
+</html>
