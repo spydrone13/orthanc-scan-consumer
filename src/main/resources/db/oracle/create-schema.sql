@@ -1,0 +1,109 @@
+-- Oracle schema for orthanc-scan-consumer, matching the JPA entities so the app can run with
+-- spring.jpa.hibernate.ddl-auto=validate (or none). Kept under db/oracle/ so Spring Boot doesn't run it
+-- automatically as schema.sql.
+--
+-- Enum-backed columns (scan_type, status, exception) are plain VARCHAR2 with no CHECK listing allowed
+-- values, so values added to the enums later are accepted (see SchemaTest).
+--
+-- EXCEPTION is a PL/SQL keyword: it's a legal column name in plain SQL, but quote it ("EXCEPTION") when
+-- referencing lot_stage_events.exception inside PL/SQL blocks.
+--
+-- Requires Oracle 12.2+ (128-character identifiers): lot_stage_restricted_next_stages is 32 characters.
+
+-- Lot stages (edited from the lot-stage config UI) ------------------------------------------------
+
+CREATE TABLE lot_stages (
+    id          VARCHAR2(255 CHAR) NOT NULL,
+    description VARCHAR2(255 CHAR),
+    position    NUMBER(10)         NOT NULL,
+    CONSTRAINT pk_lot_stages PRIMARY KEY (id)
+);
+
+CREATE TABLE lot_stage_next_stages (
+    stage_id   VARCHAR2(255 CHAR) NOT NULL,
+    idx        NUMBER(10)         NOT NULL CHECK (idx >= 0),
+    next_stage VARCHAR2(255 CHAR),
+    CONSTRAINT pk_ls_next_stages PRIMARY KEY (stage_id, idx),
+    CONSTRAINT fk_ls_next_stages FOREIGN KEY (stage_id) REFERENCES lot_stages (id)
+);
+
+CREATE TABLE lot_stage_wip_locations (
+    stage_id     VARCHAR2(255 CHAR) NOT NULL,
+    idx          NUMBER(10)         NOT NULL CHECK (idx >= 0),
+    wip_location VARCHAR2(255 CHAR),
+    description  VARCHAR2(255 CHAR),
+    CONSTRAINT pk_ls_wip_locations PRIMARY KEY (stage_id, idx),
+    CONSTRAINT fk_ls_wip_locations FOREIGN KEY (stage_id) REFERENCES lot_stages (id)
+);
+
+CREATE TABLE lot_stage_restricted_next_stages (
+    stage_id   VARCHAR2(255 CHAR) NOT NULL,
+    idx        NUMBER(10)         NOT NULL CHECK (idx >= 0),
+    next_stage VARCHAR2(255 CHAR),
+    CONSTRAINT pk_ls_restricted_next PRIMARY KEY (stage_id, idx),
+    CONSTRAINT fk_ls_restricted_next FOREIGN KEY (stage_id) REFERENCES lot_stages (id)
+);
+
+CREATE TABLE lot_stage_next_wip_locations (
+    stage_id     VARCHAR2(255 CHAR) NOT NULL,
+    idx          NUMBER(10)         NOT NULL CHECK (idx >= 0),
+    next_stage   VARCHAR2(255 CHAR),
+    wip_location VARCHAR2(255 CHAR),
+    CONSTRAINT pk_ls_next_wip_locations PRIMARY KEY (stage_id, idx),
+    CONSTRAINT fk_ls_next_wip_locations FOREIGN KEY (stage_id) REFERENCES lot_stages (id)
+);
+
+-- Scans as received from the queue ---------------------------------------------------------------
+
+CREATE TABLE scans (
+    client_id                VARCHAR2(255 CHAR) NOT NULL,
+    user_name                VARCHAR2(255 CHAR),
+    current_stage            VARCHAR2(255 CHAR),
+    lot_id                   VARCHAR2(255 CHAR),
+    destination_stage        VARCHAR2(255 CHAR),
+    destination_wip_location VARCHAR2(255 CHAR),
+    scan_type                VARCHAR2(255 CHAR),
+    note                     VARCHAR2(2000 CHAR),
+    correction_reason        VARCHAR2(2000 CHAR),
+    received_at              TIMESTAMP(6) WITH TIME ZONE,
+    CONSTRAINT pk_scans PRIMARY KEY (client_id)
+);
+
+-- Lots (aggregate root) --------------------------------------------------------------------------
+
+CREATE TABLE lots (
+    lot_id              VARCHAR2(255 CHAR) NOT NULL,
+    current_stage       VARCHAR2(255 CHAR),
+    wip_location        VARCHAR2(255 CHAR),
+    status              VARCHAR2(255 CHAR) DEFAULT 'ACTIVE' NOT NULL,
+    on_hold             NUMBER(1)          DEFAULT 0 NOT NULL CHECK (on_hold IN (0, 1)),
+    updated_at          TIMESTAMP(6) WITH TIME ZONE,
+    last_scan_client_id VARCHAR2(255 CHAR),
+    CONSTRAINT pk_lots PRIMARY KEY (lot_id)
+);
+
+CREATE INDEX ix_lots_updated_at ON lots (updated_at);
+
+-- Lot scan history -------------------------------------------------------------------------------
+
+CREATE TABLE lot_stage_events (
+    client_id          VARCHAR2(255 CHAR) NOT NULL,
+    lot_id             VARCHAR2(255 CHAR),
+    scan_type          VARCHAR2(255 CHAR),
+    user_name          VARCHAR2(255 CHAR),
+    from_stage         VARCHAR2(255 CHAR),
+    from_wip_location  VARCHAR2(255 CHAR),
+    to_stage           VARCHAR2(255 CHAR),
+    to_wip_location    VARCHAR2(255 CHAR),
+    note               VARCHAR2(2000 CHAR),
+    occurred_at        TIMESTAMP(6) WITH TIME ZONE,
+    rejected_reason    VARCHAR2(255 CHAR),
+    exception          VARCHAR2(255 CHAR),
+    corrects_client_id VARCHAR2(255 CHAR),
+    CONSTRAINT pk_lot_stage_events PRIMARY KEY (client_id)
+);
+
+-- A lot's history, newest first.
+CREATE INDEX ix_lot_stage_events_lot ON lot_stage_events (lot_id, occurred_at);
+-- Flagged rows since a given time.
+CREATE INDEX ix_lot_stage_events_occurred ON lot_stage_events (occurred_at);
