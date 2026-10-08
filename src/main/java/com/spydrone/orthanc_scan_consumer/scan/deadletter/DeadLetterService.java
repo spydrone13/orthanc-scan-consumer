@@ -11,15 +11,14 @@ import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
-import org.springframework.amqp.rabbit.connection.RabbitUtils;
 import org.springframework.amqp.rabbit.retry.RepublishMessageRecoverer;
-import org.springframework.amqp.rabbit.support.RabbitExceptionTranslator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.GetResponse;
+import com.spydrone.orthanc_scan_consumer.messaging.DedicatedChannel;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -135,29 +134,12 @@ public class DeadLetterService {
 		return properties.builder().headers(headers).build();
 	}
 
-	private <T> T inTransaction(ChannelWork<T> work) {
-		// Transactional: the connection factory has already sent tx.select on it.
-		Channel channel = connectionFactory.createConnection().createChannel(true);
-		try {
+	private <T> T inTransaction(DedicatedChannel.Work<T> work) {
+		return DedicatedChannel.run(connectionFactory, true, channel -> {
 			T result = work.run(channel);
 			channel.txCommit();
 			return result;
-		}
-		catch (IOException e) {
-			throw RabbitExceptionTranslator.convertRabbitAccessException(e);
-		}
-		finally {
-			// A physical close, not a return to the channel cache: anything not committed is rolled back
-			// and every message still unacked goes back to the queue.
-			RabbitUtils.setPhysicalCloseRequired(channel, true);
-			RabbitUtils.closeChannel(channel);
-			RabbitUtils.clearPhysicalCloseRequired();
-		}
-	}
-
-	@FunctionalInterface
-	private interface ChannelWork<T> {
-		T run(Channel channel) throws IOException;
+		});
 	}
 
 	@FunctionalInterface

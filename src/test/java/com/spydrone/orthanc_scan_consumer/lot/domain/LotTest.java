@@ -300,6 +300,34 @@ class LotTest {
 		assertThat(lot.location()).isEqualTo(new Location("S1", "WIP-1"));
 	}
 
+	@Test
+	void statusChangeIsReportedOnlyWhenTheStatusChanges() {
+		Lot lot = lotAt("S1", "WIP-1");
+		int before = events(lot).size();
+
+		lot.changeStatus(LotStatus.ACTIVE, NOW);
+		assertThat(events(lot)).hasSize(before);
+
+		lot.changeStatus(LotStatus.COMPLETE, NOW);
+		assertThat(lastEvent(lot)).isEqualTo(new LotStatusChanged("L1", LotStatus.ACTIVE, LotStatus.COMPLETE, NOW));
+	}
+
+	@Test
+	void holdChangeIsReportedOnlyWhenTheHoldChanges() {
+		Lot lot = lotAt("S1", "WIP-1");
+		int before = events(lot).size();
+
+		lot.releaseHold(NOW);
+		assertThat(events(lot)).hasSize(before);
+
+		lot.placeOnHold(NOW);
+		lot.placeOnHold(NOW.plusSeconds(1));
+		lot.releaseHold(NOW.plusSeconds(2));
+		assertThat(List.<Object>copyOf(events(lot).subList(before, events(lot).size()))).containsExactly(
+				new LotHoldChanged("L1", true, NOW),
+				new LotHoldChanged("L1", false, NOW.plusSeconds(2)));
+	}
+
 	private static Scan scan(String stage, String destinationStage, String destinationWipLocation) {
 		return new Scan("abc", "u", stage, destinationStage, destinationWipLocation, "n", null);
 	}

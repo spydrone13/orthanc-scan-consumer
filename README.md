@@ -2,7 +2,8 @@
 
 Spring Boot app (port 3001) that consumes scans published by orthanc-scan-producer from the RabbitMQ queue
 bound to the `orthanc.scans` exchange, stores them, and applies them to their lots. It also serves the lot API
-the producer calls before publishing (`GET /api/lots/{lotId}`).
+the producer calls before publishing (`GET /api/lots/{lotId}`), and publishes lot events for other applications
+(see [Lot events for other applications](#lot-events-for-other-applications)).
 
 ## Configuration files
 
@@ -118,3 +119,86 @@ different arguments (`PRECONDITION_FAILED - inequivalent arg 'x-dead-letter-exch
 the new version, let the queue drain, then delete `orthanc.scans` in the management UI (Queues → orthanc.scans
 → Delete). Both apps redeclare it on startup. Messages still in the queue when it's deleted are lost. The
 producer declares the same queue and must be updated at the same time.
+
+## Lot events for other applications
+
+Every committed change to a lot is published to the topic exchange **`orthanc.lots`**, for any number of
+other applications. This app declares only the exchange: each subscriber declares and binds its own queue,
+so adding a subscriber needs no change here.
+
+### Event types
+
+The routing key is the event type:
+
+| Routing key              | When                                                                         |
+|--------------------------|------------------------------------------------------------------------------|
+| `lot.moved`              | A scan moved the lot to another stage or WIP location                        |
+| `lot.scanned`            | A scan was applied but the lot stayed where it was                           |
+| `lot.location-corrected` | The records had the lot at another stage than it was scanned at; it was moved there first (followed by the scan's own event) |
+| `lot.scan-rejected`      | A scan wasn't applied (lot on hold, or not active)                           |
+| `lot.status-changed`     | The lot's status changed                                                     |
+| `lot.hold-changed`       | The lot was placed on hold or released                                       |
+
+Bind with `lot.#` for everything, or with the specific keys you need.
+
+### Message
+
+JSON, with AMQP properties `messageId` (= `eventId`), `type` (= routing key), `content_type`
+`application/json` and `timestamp`. Fields that don't apply to an event type are `null`.
+
+```json
+{
+  "eventId": "6f1c…", "type": "lot.moved", "schemaVersion": 1, "sequence": 1042,
+  "occurredAt": "2026-10-08T13:45:00Z", "lotId": "L1",
+  "lot":  { "currentStage": "wafer-prep", "wipLocation": "WAFER-PREP-001", "status": "active", "onHold": false },
+  "from": { "stage": "intake", "wipLocation": null },
+  "to":   { "stage": "wafer-prep", "wipLocation": "WAFER-PREP-001" },
+  "scan": { "clientId": "c1", "userName": "op1", "scanStage": "intake", "note": "" },
+  "discrepancy": null, "rejectionReason": null, "previousStatus": null
+}
+```
+
+- `lot` is the lot's state right after the event, so most subscribers never need to call back.
+- `discrepancy` (`OFF_ROUTE`, `LOCATION_CORRECTED`, `LOCATION_MISMATCH_UNCONFIRMED`) is set when a move or
+  correction was flagged for review; `rejectionReason` (e.g. `LOT_ON_HOLD`) on `lot.scan-rejected`;
+  `previousStatus` on `lot.status-changed`. Statuses are spelled as in the lot API (`active`, `complete`, ...).
+- New fields and new enum values may be added; ignore ones you don't know. A breaking change bumps
+  `schemaVersion`.
+
+### Delivery guarantees
+
+- **Nothing committed is lost.** Events are written to the `lot_outbox_events` table in the same transaction as
+  the lot change, then published from there with broker confirms. If RabbitMQ is down they wait and go out in
+  order once it's back. Published rows are kept for 7 days (`app.lots.outbox.retention`).
+- **At least once.** An event can occasionally arrive twice: de-duplicate on `eventId`.
+- **In order** as published. If your consumer can process out of order (several consumers on one queue,
+  retries), compare `sequence`: it only increases, so ignore an event for a lot whose `sequence` is lower than
+  the last one you applied.
+- A queue only receives events published after it was bound. To start from the current state, load
+  `GET /api/lots` first, then apply events.
+- The relay assumes a single instance of this app. Running several would need row locking in `OutboxRelay`.
+
+### Subscribing (Spring Boot example)
+
+```java
+@Configuration
+class LotEventsSubscription {
+
+    @Bean
+    Queue lotEventsQueue() {
+        return QueueBuilder.durable("orthanc.lots.my-app").build();   // one queue per subscribing app
+    }
+
+    @Bean
+    Binding lotEventsBinding(Queue lotEventsQueue) {
+        return BindingBuilder.bind(lotEventsQueue).to(new TopicExchange("orthanc.lots")).with("lot.#");
+    }
+}
+
+@RabbitListener(queues = "orthanc.lots.my-app")
+void onLotEvent(LotEvent event) { … }   // your own record with the fields you need, plus a JSON message converter
+```
+
+Use your own queue name, and give it a dead-letter queue as this app does for scans, so an event your app
+can't process isn't lost. To see events while developing, bind a scratch queue to `orthanc.lots` with `lot.#`
+in the management UI and use **Get messages**.

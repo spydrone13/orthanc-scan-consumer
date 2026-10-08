@@ -16,8 +16,9 @@ import jakarta.persistence.Table;
 
 /**
  * Aggregate root for a lot: where it is, its status and whether it's on hold, and the rules for
- * scanning it. Changes only through its methods; scans are reported as {@link ScanApplied} or
- * {@link ScanRejected} domain events, published when the lot is saved.
+ * scanning it. Changes only through its methods, reported as domain events ({@link ScanApplied},
+ * {@link ScanRejected}, {@link LocationCorrected}, {@link LotStatusChanged}, {@link LotHoldChanged})
+ * that are published when the lot is saved.
  */
 @Entity
 @Table(name = "lots")
@@ -130,21 +131,35 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 		return Objects.equals(to.stage(), scan.scanStage()) ? ScanType.INFORMATIONAL : ScanType.TRANSITIONAL;
 	}
 
-	/** Any status may change to any other. */
+	/** Any status may change to any other. Reported as {@link LotStatusChanged} if it actually changes. */
 	public void changeStatus(LotStatus status, Instant at) {
+		LotStatus previous = getStatus();
 		this.status = Objects.requireNonNull(status).name();
 		this.updatedAt = at;
+		if (previous != status) {
+			registerEvent(new LotStatusChanged(lotId, previous, status, at));
+		}
 	}
 
-	/** While held, the lot can't be scanned out of its current stage. */
+	/**
+	 * While held, the lot can't be scanned out of its current stage. Reported as {@link LotHoldChanged}
+	 * if it wasn't already held.
+	 */
 	public void placeOnHold(Instant at) {
-		this.onHold = true;
-		this.updatedAt = at;
+		setHold(true, at);
 	}
 
 	public void releaseHold(Instant at) {
-		this.onHold = false;
+		setHold(false, at);
+	}
+
+	private void setHold(boolean onHold, Instant at) {
+		boolean changed = this.onHold != onHold;
+		this.onHold = onHold;
 		this.updatedAt = at;
+		if (changed) {
+			registerEvent(new LotHoldChanged(lotId, onHold, at));
+		}
 	}
 
 	private static Location destination(Scan scan, Location from) {
