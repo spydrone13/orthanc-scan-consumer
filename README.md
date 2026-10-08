@@ -51,6 +51,8 @@ and routing key as in your producer's `application-local.properties`:
 spring.rabbitmq.host=<test-rabbitmq-host>
 app.scans.queue=orthanc.scans.<your-name>
 app.scans.routing-key=scan.created.<your-name>
+app.scans.dead-letter-exchange=orthanc.scans.dlx.<your-name>
+app.scans.dead-letter-queue=orthanc.scans.dlq.<your-name>
 ```
 
 Then run with the `local` profile.
@@ -59,8 +61,8 @@ Then run with the `local` profile.
   environment consumer and take some of its messages.
 - The routing key must differ from `scan.created`, not just the queue name. Otherwise your queue also receives
   copies of everyone's test scans.
-- Your RabbitMQ user needs configure, write and read permission on your queue. It's durable, so delete it in
-  the RabbitMQ management UI when you no longer need it.
+- Your RabbitMQ user needs configure, write and read permission on your queue and dead-letter queue and
+  exchange. They're durable, so delete them in the RabbitMQ management UI when you no longer need them.
 
 ### Mode 3: everything local
 
@@ -81,3 +83,22 @@ Then start this app, then orthanc-scan-producer:
 ```
 
 The management UI is at http://localhost:15672 (guest / guest).
+
+## Failed scans
+
+A scan that throws while being processed is retried twice more (1s, then 2s later), each attempt in its own
+transaction that's rolled back on failure. If it still fails, or the message can't be read as a scan at all,
+it's rejected and RabbitMQ moves it to the dead-letter queue `orthanc.scans.dlq` (through the
+`orthanc.scans.dlx` exchange). Nothing is lost and the scans queue keeps moving.
+
+In the management UI, open the dead-letter queue and use **Get messages** to see a failed scan; its `x-death`
+header records the queue it came from and when. To replay scans once the cause is fixed, use **Move messages**
+(shovel plugin) to send them back to `orthanc.scans`. Scans already stored are skipped, so replaying is safe.
+
+### Upgrading an existing broker
+
+The scans queue now carries dead-letter arguments, and RabbitMQ refuses to redeclare an existing queue with
+different arguments (`PRECONDITION_FAILED - inequivalent arg 'x-dead-letter-exchange'`). Once, before starting
+the new version, let the queue drain, then delete `orthanc.scans` in the management UI (Queues → orthanc.scans
+→ Delete). Both apps redeclare it on startup. Messages still in the queue when it's deleted are lost. The
+producer declares the same queue and must be updated at the same time.

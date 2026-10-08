@@ -4,13 +4,18 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/** Mirrors the producer's declarations so either app can start first. */
+/**
+ * Mirrors the producer's declarations so either app can start first. Scans that still fail after the
+ * listener's retries (see application.properties), or can't be read at all, are rejected and dead-lettered
+ * to the dead-letter queue instead of being requeued forever or dropped.
+ */
 @Configuration
 public class RabbitConfig {
 
@@ -19,15 +24,40 @@ public class RabbitConfig {
 		return new DirectExchange(name);
 	}
 
+	/**
+	 * RabbitMQ won't change an existing queue's arguments: a queue declared before the dead-letter
+	 * arguments existed must be deleted so it can be redeclared (see README).
+	 */
 	@Bean
-	Queue scansQueue(@Value("${app.scans.queue}") String name) {
-		return new Queue(name, true);
+	Queue scansQueue(@Value("${app.scans.queue}") String name,
+			@Value("${app.scans.dead-letter-exchange}") String deadLetterExchange,
+			@Value("${app.scans.dead-letter-queue}") String deadLetterQueue) {
+		return QueueBuilder.durable(name)
+				.deadLetterExchange(deadLetterExchange)
+				.deadLetterRoutingKey(deadLetterQueue)
+				.build();
 	}
 
 	@Bean
 	Binding scansBinding(Queue scansQueue, DirectExchange scansExchange,
 			@Value("${app.scans.routing-key}") String routingKey) {
 		return BindingBuilder.bind(scansQueue).to(scansExchange).with(routingKey);
+	}
+
+	@Bean
+	DirectExchange scansDeadLetterExchange(@Value("${app.scans.dead-letter-exchange}") String name) {
+		return new DirectExchange(name);
+	}
+
+	/** Failed scans wait here, with RabbitMQ's x-death header saying why, to be inspected or replayed. */
+	@Bean
+	Queue scansDeadLetterQueue(@Value("${app.scans.dead-letter-queue}") String name) {
+		return QueueBuilder.durable(name).build();
+	}
+
+	@Bean
+	Binding scansDeadLetterBinding(Queue scansDeadLetterQueue, DirectExchange scansDeadLetterExchange) {
+		return BindingBuilder.bind(scansDeadLetterQueue).to(scansDeadLetterExchange).with(scansDeadLetterQueue.getName());
 	}
 
 	@Bean
