@@ -264,6 +264,109 @@ Spring Boot service (port 3001). It does five things:
 - `GET /api/lots/{lotId}/events` returns history newest first.
 - An unknown lot returns 404 as a ProblemDetail, through `LotApiExceptionHandler`.
 - `GET /api/lot-exceptions?since=<ISO instant>` returns flagged history rows newest first. Each row includes the history row it corrects, when there is one.
+
+**API:**
+
+**LotView object**
+
+| Field | Type | Meaning |
+|---|---|---|
+| `lotId` | string | Lot id |
+| `currentStage` | string \| null | Stage the lot is in |
+| `wipLocation` | string \| null | WIP location within that stage |
+| `status` | enum | `active`, `canceled`, `destroyed`, `complete` |
+| `onHold` | boolean | A held lot can't be scanned out of its stage |
+| `updatedAt` | instant | Last change |
+| `lastScan` | object \| null | `{ clientId, userName, at }` of the scan that put the lot where it is |
+
+**`GET /api/lots`**: every lot, newest `updatedAt` first.
+- 200: `LotView[]`.
+
+**`GET /api/lots/{lotId}`**: one lot. The producer calls this before it publishes a scan.
+- 200:
+  ```json
+  {
+    "lotId": "LOT-001",
+    "currentStage": "wafer-prep",
+    "wipLocation": "WAFER-PREP-001",
+    "status": "active",
+    "onHold": false,
+    "updatedAt": "2026-10-08T13:45:00Z",
+    "lastScan": { "clientId": "c-7f3a", "userName": "op1", "at": "2026-10-08T13:45:00Z" }
+  }
+  ```
+- 404: `"Unknown lot: LOT-404"`.
+
+**`GET /api/lots/{lotId}/events`**: the lot's history, newest first.
+
+**LotStageEventView object**
+
+| Field | Type | Meaning |
+|---|---|---|
+| `clientId` | string | Scan behind the row |
+| `lotId` | string | Lot id |
+| `scanType` | enum | `transitional`, `informational`, or `correction` for a location correction |
+| `userName` | string | Operator |
+| `fromStage` / `fromWipLocation` | string \| null | Where the lot was |
+| `toStage` / `toWipLocation` | string \| null | Where it went (for a rejected scan, where it stayed) |
+| `note` | string \| null | Scan note |
+| `occurredAt` | instant | When it was applied |
+| `rejectedReason` | string \| null | Set when the scan wasn't applied, e.g. `LOT_ON_HOLD` |
+| `exception` | enum \| null | Discrepancy, when the row is flagged for review |
+| `correctsClientId` | string \| null | For a correction, the earlier scan that put the lot where the records wrongly had it |
+
+A correction row has `clientId` set to the scan's id plus `#correction`, `note` set to the scan's `correctionReason`, and `occurredAt` set 1µs before the scan's own row, so it sorts just before it. A rejected row has `from` equal to `to`, both being where the lot stayed.
+
+- 200:
+  ```json
+  [
+    {
+      "clientId": "c-7f3a",
+      "lotId": "LOT-001",
+      "scanType": "transitional",
+      "userName": "op1",
+      "fromStage": "intake",
+      "fromWipLocation": null,
+      "toStage": "wafer-prep",
+      "toWipLocation": "WAFER-PREP-001",
+      "note": "",
+      "occurredAt": "2026-10-08T13:45:00Z",
+      "rejectedReason": null,
+      "exception": null,
+      "correctsClientId": null
+    }
+  ]
+  ```
+- 404: unknown lot.
+
+**`GET /api/lot-exceptions`**: flagged history rows across all lots, newest first.
+
+| Param | In | Required | Meaning |
+|---|---|---|---|
+| `since` | query | no | ISO instant; only rows at or after it. Without it, every row is returned. |
+
+- 200: an array of `{ "event": LotStageEventView, "corrects": LotStageEventView | null }`:
+  ```json
+  [
+    {
+      "event": {
+        "clientId": "c-9b21#correction", "lotId": "LOT-001", "scanType": "correction", "userName": "op2",
+        "fromStage": "wafer-prep", "fromWipLocation": "WAFER-PREP-001",
+        "toStage": "photolithography", "toWipLocation": null,
+        "note": "Found on the litho rack", "occurredAt": "2026-10-08T15:01:59.999999Z",
+        "rejectedReason": null, "exception": "LOCATION_CORRECTED", "correctsClientId": "c-7f3a"
+      },
+      "corrects": {
+        "clientId": "c-7f3a", "lotId": "LOT-001", "scanType": "transitional", "userName": "op1",
+        "fromStage": "intake", "fromWipLocation": null,
+        "toStage": "wafer-prep", "toWipLocation": "WAFER-PREP-001",
+        "note": "", "occurredAt": "2026-10-08T13:45:00Z",
+        "rejectedReason": null, "exception": null, "correctsClientId": null
+      }
+    }
+  ]
+  ```
+- 400: `since` isn't a valid instant.
 **Reference:** `lot/api/LotQueryController.java`, `lot/api/LotExceptionController.java`, `lot/api/LotApiExceptionHandler.java`, `lot/application/LotQueries.java`, `LotView.java`, `LotViewRepository.java`, `LotStageEventView.java`, `LotExceptionView.java`, tests `LotQueriesTest`, `LotQueryControllerTest`
 **Depends on:** OSC-7
 
@@ -274,6 +377,32 @@ Spring Boot service (port 3001). It does five things:
 - `LotStatusChanged` and `LotHoldChanged` are raised only when the value actually changes.
 - Any status may change to any other status.
 - `api-requests/lot-api.http` and the curl samples are updated.
+
+**API:**
+
+**`PUT /api/lots/{lotId}/status`**: sets the lot's status.
+- Request:
+  ```json
+  { "status": "complete" }
+  ```
+- 200: the `LotView` (OSC-8). `lastScan` is always `null` in this response.
+  ```json
+  {
+    "lotId": "LOT-001", "currentStage": "wafer-prep", "wipLocation": "WAFER-PREP-001",
+    "status": "complete", "onHold": false, "updatedAt": "2026-10-08T16:00:00Z", "lastScan": null
+  }
+  ```
+- 400: `"Status is required"`. A status value that isn't one of the four is also a 400, rejected when the body is read.
+- 404: `"Unknown lot: LOT-404"`.
+
+**`PUT /api/lots/{lotId}/hold`**: places the lot on hold or releases it.
+- Request:
+  ```json
+  { "onHold": true }
+  ```
+- 200: the `LotView`, with `"onHold": true` and `lastScan: null`.
+- 400: `"onHold is required"`.
+- 404: unknown lot.
 **Reference:** `lot/api/LotCommandController.java`, `LotStatusUpdate.java`, `LotHoldUpdate.java`, `lot/application/ChangeLotStatus.java`, `SetLotHold.java`, tests `LotCommandControllerTest`, `LotCommandHandlerTest`
 **Depends on:** OSC-6
 
@@ -299,6 +428,63 @@ Spring Boot service (port 3001). It does five things:
 - A retry strips the failure headers, so a scan that fails again is reported with its new reason. Retrying is safe because the listener skips scans that are already stored.
 - A discarded message's body is logged at WARN.
 - The `/dead-letters` page has Refresh, Retry all, a Retry button per row, and a Discard button per row that needs two clicks to confirm.
+
+**API:**
+
+**DeadLetter object**
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | string | The scan's `clientId`, or `sha-` plus the first 16 hex characters of the body's SHA-256 if the body can't be read |
+| `clientId`, `lotId`, `userName` | string \| null | From the body; `null` if the body isn't a JSON object |
+| `reason` | string \| null | Exception message, or RabbitMQ's dead-letter reason (e.g. `"rejected"`) |
+| `stackTrace` | string \| null | Only set when the scan failed every retry |
+| `failedAt` | instant \| null | Taken from the failed-at header, then x-death time, then message timestamp |
+| `body` | string | The raw message as text |
+
+**`GET /api/dead-letters`**: the oldest 500 dead-lettered messages, oldest first.
+- 200. `total` is the full queue depth, which can be more than the number listed.
+  ```json
+  {
+    "total": 2,
+    "deadLetters": [
+      {
+        "id": "c-7f3a",
+        "clientId": "c-7f3a",
+        "lotId": "LOT-013",
+        "userName": "op1",
+        "reason": "Unknown stage: foo",
+        "stackTrace": "java.lang.IllegalStateException: Unknown stage: foo\n\tat ...",
+        "failedAt": "2026-10-08T13:45:03Z",
+        "body": "{\"clientId\":\"c-7f3a\",\"lotId\":\"LOT-013\",...}"
+      },
+      {
+        "id": "sha-9b1e04c2a7d3f580",
+        "clientId": null,
+        "lotId": null,
+        "userName": null,
+        "reason": "rejected",
+        "stackTrace": null,
+        "failedAt": "2026-10-08T13:50:00Z",
+        "body": "not json"
+      }
+    ]
+  }
+  ```
+
+**`POST /api/dead-letters/{id}/retry`**: sends one message back to the scans exchange, without its failure headers.
+- 204: no body.
+- 404: `"No dead-lettered scan {id}"`.
+
+**`POST /api/dead-letters/retry`**: retries every listed message.
+- 200:
+  ```json
+  { "replayed": 2 }
+  ```
+
+**`DELETE /api/dead-letters/{id}`**: removes one message for good and logs its body at WARN.
+- 204: no body.
+- 404: `"No dead-lettered scan {id}"`.
 **Reference:** `scan/deadletter/DeadLetterService.java`, `DeadLetterController.java`, `DeadLetter.java`, `DeadLetterPageConfig.java`, `messaging/DedicatedChannel.java`, `static/dead-letters.html`, `static/js/dead-letters.js`, tests in `scan/deadletter/`
 **Depends on:** OSC-10
 
@@ -321,6 +507,72 @@ Spring Boot service (port 3001). It does five things:
 - The app declares only the exchange; subscribers declare their own queues.
 - A README section documents the contract, delivery guarantees (at least once, de-duplicate on `eventId`, order by `sequence`) and a subscriber example.
 - Known limit: this assumes a single instance. Running several needs row locking, which is out of scope.
+
+**API (published message contract):**
+
+Exchange `orthanc.lots` (topic). The routing key is the event `type`.
+
+| AMQP property | Value |
+|---|---|
+| `messageId` | `eventId` |
+| `type` | routing key, e.g. `lot.moved` |
+| `content_type` | `application/json` |
+| `timestamp` | `occurredAt` |
+
+**LotEventMessage**
+
+| Field | Type | Set for | Meaning |
+|---|---|---|---|
+| `eventId` | string (UUID) | all | Unique; subscribers de-duplicate on it |
+| `type` | string | all | Routing key |
+| `schemaVersion` | int | all | `1`; bumped only for breaking changes |
+| `sequence` | long | all | Increasing across all events; set when the event is published |
+| `occurredAt` | instant | all | When the change happened |
+| `lotId` | string | all | Lot id |
+| `lot` | object | all | State after the event: `{ currentStage, wipLocation, status, onHold }` |
+| `from` | object \| null | moved, scanned, location-corrected | `{ stage, wipLocation }` before |
+| `to` | object \| null | moved, scanned, location-corrected, scan-rejected | `{ stage, wipLocation }` after (for rejected, where the lot stayed) |
+| `scan` | object \| null | scan events | `{ clientId, userName, scanStage, note }` |
+| `discrepancy` | string \| null | moved, location-corrected | Discrepancy name, when flagged |
+| `rejectionReason` | string \| null | scan-rejected | e.g. `LOT_ON_HOLD` |
+| `previousStatus` | enum \| null | status-changed | Status before the change |
+
+`lot.moved`:
+```json
+{
+  "eventId": "6f1c2e0a-1d4b-4c55-9a7e-0b3f8f0c2d11", "type": "lot.moved", "schemaVersion": 1, "sequence": 1042,
+  "occurredAt": "2026-10-08T13:45:00Z", "lotId": "LOT-001",
+  "lot":  { "currentStage": "wafer-prep", "wipLocation": "WAFER-PREP-001", "status": "active", "onHold": false },
+  "from": { "stage": "intake", "wipLocation": null },
+  "to":   { "stage": "wafer-prep", "wipLocation": "WAFER-PREP-001" },
+  "scan": { "clientId": "c-7f3a", "userName": "op1", "scanStage": "intake", "note": "" },
+  "discrepancy": null, "rejectionReason": null, "previousStatus": null
+}
+```
+
+`lot.scan-rejected`:
+```json
+{
+  "eventId": "…", "type": "lot.scan-rejected", "schemaVersion": 1, "sequence": 1043,
+  "occurredAt": "2026-10-08T14:00:00Z", "lotId": "LOT-001",
+  "lot":  { "currentStage": "wafer-prep", "wipLocation": "WAFER-PREP-001", "status": "active", "onHold": true },
+  "from": null,
+  "to":   { "stage": "wafer-prep", "wipLocation": "WAFER-PREP-001" },
+  "scan": { "clientId": "c-8d02", "userName": "op1", "scanStage": "wafer-prep", "note": "" },
+  "discrepancy": null, "rejectionReason": "LOT_ON_HOLD", "previousStatus": null
+}
+```
+
+`lot.status-changed`. `lot.hold-changed` has the same shape, with `previousStatus: null`; read `lot.onHold` for the new value.
+```json
+{
+  "eventId": "…", "type": "lot.status-changed", "schemaVersion": 1, "sequence": 1044,
+  "occurredAt": "2026-10-08T16:00:00Z", "lotId": "LOT-001",
+  "lot":  { "currentStage": "wafer-prep", "wipLocation": "WAFER-PREP-001", "status": "complete", "onHold": false },
+  "from": null, "to": null, "scan": null,
+  "discrepancy": null, "rejectionReason": null, "previousStatus": "active"
+}
+```
 **Reference:** `lot/events/*` (`LotEventMessage`, `LotEventRecorder`, `OutboxEvent`, `OutboxEventRepository`, `OutboxRelay`, `LotEventsConfig`), tests `LotEventRecorderTest`, `OutboxRelayTest`
 **Depends on:** OSC-6, OSC-9
 
