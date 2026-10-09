@@ -1,0 +1,196 @@
+# orthanc-scan-consumer: Jira backlog
+
+Reference paths are relative to `src/main/java/com/spydrone/orthanc_scan_consumer/` unless they start with `src/`.
+
+## EPIC: Orthanc Scan Consumer service
+Spring Boot service (port 3001). It does five things:
+- Consumes lot scans from RabbitMQ, stores them, and applies them to a lot aggregate, enforcing the stage routes.
+- Records lot history.
+- Exposes lot and lot-stage APIs and admin pages.
+- Dead-letters scans it can't process.
+- Publishes lot events to other applications through a transactional outbox.
+
+---
+
+### OSC-1: Project scaffold and configuration (2 pts)
+**Description:** Create the Spring Boot 4.1 / Java project with Maven wrapper and the starters: amqp, webmvc, data-jpa, h2console, and h2 at runtime. Set up the layered configuration.
+**AC:**
+- App starts on port 3001 with `spring.application.name=orthanc-scan-consumer`.
+- H2 is file-backed at `./data/orthanc-consumer;AUTO_SERVER=TRUE`, with `ddl-auto=update` and the H2 console enabled.
+- `spring.config.import=optional:classpath:application-secrets.properties` is set, and the `local` profile loads `application-local.properties`.
+- Both files are git-ignored and left out of the jar by a `maven-jar-plugin` exclude.
+- `spring.mvc.problemdetails.enabled=true`.
+- The README documents the config precedence and the three local run modes, including the Docker RabbitMQ command.
+**Reference:** `pom.xml`, `src/main/resources/application.properties`, `.gitignore`, `README.md`
+
+### OSC-2: Scan intake over RabbitMQ (3 pts)
+**Description:** Declare the scan topology to match the producer and consume `ScanRecord` JSON messages. Store each scan once.
+**AC:**
+- The app declares the direct exchange `orthanc.scans`, the durable queue `orthanc.scans`, and a binding with `scan.created`. All three names come from `app.scans.*` properties.
+- A Jackson JSON message converter is in place.
+- `ScanRecord` has these fields: `clientId`, `userName`, `currentStage`, `lotId`, `destinationStage`, `destinationWipLocation`, `scanType`, `note`, `correctionReason`.
+- `scanType` is stored as a string, not an enum ordinal.
+- The listener is `@Transactional`. It skips a scan whose `clientId` is already stored, logs it at INFO, and otherwise saves a `ScanEntity` with `receivedAt` and then calls the lot command (OSC-6).
+- `GET /api/scans` returns scans newest first, and `GET /api/scans/{clientId}` returns 404 when the scan is missing.
+- Tests: a duplicate delivery is ignored, and the converter round-trips a scan.
+**Reference:** `scan/RabbitConfig.java`, `scan/ScanListener.java`, `scan/ScanRecord.java`, `scan/ScanEntity.java`, `scan/ScanController.java`, `scan/ScanType.java`
+**Depends on:** OSC-1
+
+### OSC-3: Lot-stage graph model, persistence, and seed (3 pts)
+**Description:** Model each stage as a description, an ordered list of next stages, its WIP locations in order, and optional per-next-stage WIP restrictions. Store the stages in the DB and seed them from JSON.
+**AC:**
+- The tables are `lot_stages` (id, description, position) plus these collection tables, each ordered by `idx`:
+  - `lot_stage_next_stages`
+  - `lot_stage_wip_locations`
+  - `lot_stage_restricted_next_stages`
+  - `lot_stage_next_wip_locations`
+- On startup, if the table is empty, the stages are seeded from `classpath:lot-stages.json` and file order is kept as `position`.
+- A WIP location with no description defaults to the stage description plus the id's trailing number (`WAFER-PREP-001` → "Wafer Prep 1").
+- A next stage listed in `next-wip-locations` allows only the listed WIPs; an empty list means the stage itself only. A next stage that isn't listed allows any WIP.
+- A read leaves out restricted WIPs that the next stage no longer has.
+**Reference:** `stage/LotStage.java`, `stage/WipLocation.java`, `stage/LotStageEntity.java`, `stage/WipLocationEntry.java`, `stage/NextWipLocationEntry.java`, `stage/LotStageService.java`, `src/main/resources/lot-stages.json`
+**Depends on:** OSC-1
+
+### OSC-4: Lot-stage API (2 pts)
+**AC:**
+- `GET /api/lot-stages` returns a map of stages keyed by id, in process order.
+- `PUT /api/lot-stages/{id}` replaces the stage's next stages, WIP locations and next-WIP restrictions. Description and order are not editable.
+- The PUT returns 404 for an unknown stage.
+- It returns 400 for any of these:
+  - The stage lists itself as a next stage.
+  - A next stage is unknown.
+  - A WIP location is duplicated (case-insensitive).
+  - A restriction is set for a stage that isn't a next stage.
+  - A restriction lists a WIP the next stage doesn't have.
+- Blank WIP ids are dropped, and a blank description is stored as null.
+- Restricted WIPs are returned in the next stage's display order.
+- CORS allows the origins set in `app.cors.allowed-origins` (default `http://localhost:4200`).
+**Reference:** `stage/LotStageController.java`, `stage/LotStageUpdate.java`, `stage/LotStageService.java#update`, `scan/WebConfig.java`, tests `stage/LotStageServiceTest.java`, `stage/LotStageControllerTest.java`
+**Depends on:** OSC-3
+
+### OSC-5: Lot-stage admin pages: config editor and barcode sheet (3 pts)
+**Description:** Static plain-JS pages served by this app (not the Angular scan UI).
+**AC:**
+- `/lot-stages` shows a table of each stage, its valid next stages and its WIP locations, and lets you edit them through the PUT API.
+- `/lot-stage-barcodes` renders printable stage and WIP barcodes with the vendored JsBarcode, and has a Print button.
+- Both pages share `css/lot-stages.css` and are reachable at the extensionless paths through a view-controller config.
+**Reference:** `src/main/resources/static/lot-stages.html`, `static/js/lot-stages.js`, `static/lot-stage-barcodes.html`, `static/js/lot-stage-barcodes.js`, `stage/LotStagePageConfig.java`, test `stage/LotStagePageTest.java`
+**Depends on:** OSC-4
+
+### OSC-6: Lot aggregate and scan rules (5 pts)
+**Description:** `Lot` is a DDD aggregate (`AbstractAggregateRoot`) with location (stage + WIP), status, hold flag, `updatedAt` and `lastScanClientId`. `LotCommandHandler.handle(ApplyScan)` loads the lot (or creates it on first scan), applies the scan and saves it.
+**AC (`applyScan`):**
+- **The incoming `scanType` is not trusted.** The destination comes from these fields:
+  - stage + WIP: go to that WIP in that stage.
+  - stage only: go to that stage, with no WIP.
+  - WIP only: go to that WIP in the scan's stage.
+  - neither: stay where it is (a new lot goes to the scan's stage).
+- Derived type: INFORMATIONAL if the destination stage equals the scan stage, otherwise TRANSITIONAL.
+- Checks run in this order:
+  1. A lot that isn't ACTIVE gets `ScanRejected` with `LOT_CANCELED`, `LOT_DESTROYED` or `LOT_COMPLETE`.
+  2. **Location correction.** If the records have the lot at another stage than the scan stage (and not already at the scan's destination), it emits `LocationCorrected` and moves the lot to the scan stage first. The discrepancy is `LOCATION_CORRECTED` when a `correctionReason` is given, otherwise `LOCATION_MISMATCH_UNCONFIRMED`.
+  3. A held lot leaving its stage gets `ScanRejected(LOT_ON_HOLD)`. Moves within the same stage are allowed.
+  4. A cross-stage move that `StageRoutes` doesn't allow is still applied, but flagged `OFF_ROUTE`.
+  5. Otherwise it emits `ScanApplied(from, to, discrepancy)`.
+- `LotStageRoutes` implements `StageRoutes` over the lot-stage config (next stage required, and the WIP must be allowed per OSC-3).
+- Statuses are serialized lowercase (`active`, `canceled`, `destroyed`, `complete`), and stored as strings with a column default of `ACTIVE`.
+- Unit tests cover every branch above.
+**Reference:** `lot/domain/*` (`Lot`, `Scan`, `Location`, `StageRoutes`, `Discrepancy`, `RejectionReason`, `LotStatus`, event records), `lot/application/LotCommandHandler.java`, `lot/application/ApplyScan.java`, `stage/LotStageRoutes.java`, test `lot/domain/LotTest.java`
+**Depends on:** OSC-2, OSC-3
+
+### OSC-7: Lot history (2 pts)
+**Description:** Write a history row for each scan outcome, in the same transaction that saves the lot.
+**AC:**
+- `@EventListener`s for `ScanApplied`, `LocationCorrected` and `ScanRejected` write rows to `lot_stage_events`. Each row has the scan type (including `CORRECTION`), from/to, the exception (discrepancy or rejection reason) and `correctsClientId`.
+- Discrepancies and rejections are logged at WARN.
+- The table has indexes on `(lot_id, occurred_at)` and `(occurred_at)`.
+**Reference:** `lot/application/LotHistoryRecorder.java`, `lot/history/LotStageEvent.java`, `lot/history/LotStageEventRepository.java`
+**Depends on:** OSC-6
+
+### OSC-8: Lot query API (3 pts)
+**Description:** The read side, which the producer calls before it publishes a scan.
+**AC:**
+- `GET /api/lots` returns lots most recently updated first.
+- `GET /api/lots/{lotId}` returns a `LotView` with `lastScan {clientId, userName, at}`, built by a JPQL projection.
+- `GET /api/lots/{lotId}/events` returns history newest first.
+- An unknown lot returns 404 as a ProblemDetail, through `LotApiExceptionHandler`.
+- `GET /api/lot-exceptions?since=<ISO instant>` returns flagged history rows newest first. Each row includes the history row it corrects, when there is one.
+**Reference:** `lot/api/LotQueryController.java`, `lot/api/LotExceptionController.java`, `lot/api/LotApiExceptionHandler.java`, `lot/application/LotQueries.java`, `LotView.java`, `LotViewRepository.java`, `LotStageEventView.java`, `LotExceptionView.java`, tests `LotQueriesTest`, `LotQueryControllerTest`
+**Depends on:** OSC-7
+
+### OSC-9: Lot command API: status and hold (2 pts)
+**AC:**
+- `PUT /api/lots/{lotId}/status {status}` and `PUT /api/lots/{lotId}/hold {onHold}` return the updated `LotView`.
+- A missing field returns 400, and an unknown lot returns 404.
+- `LotStatusChanged` and `LotHoldChanged` are raised only when the value actually changes.
+- Any status may change to any other status.
+- `api-requests/lot-api.http` and the curl samples are updated.
+**Reference:** `lot/api/LotCommandController.java`, `LotStatusUpdate.java`, `LotHoldUpdate.java`, `lot/application/ChangeLotStatus.java`, `SetLotHold.java`, tests `LotCommandControllerTest`, `LotCommandHandlerTest`
+**Depends on:** OSC-6
+
+### OSC-10: Retry and dead-letter queue for failed scans (3 pts)
+**AC:**
+- Listener retry is on: 2 retries, starting at 1s with multiplier 2 and a 10s max. Each attempt runs in its own rolled-back transaction, and `default-requeue-rejected=false`.
+- The scans queue has dead-letter args pointing at `orthanc.scans.dlx`, and the DLX is bound to the durable queue `orthanc.scans.dlq`.
+- `FailedScanRecoverer` (a `RepublishMessageRecoverer`) republishes to the DLX with the exception message, the stack trace and a failed-at ISO timestamp header, and logs the stack trace.
+- A message that can't be read as a scan also ends up in the DLQ.
+- The README covers the one-time broker upgrade (delete and redeclare the queue on `PRECONDITION_FAILED`).
+**Reference:** `scan/RabbitConfig.java`, `scan/deadletter/FailedScanRecoverer.java`, `application.properties`, tests `RabbitConfigTest`, `DeadLetterTest`
+**Depends on:** OSC-2
+
+### OSC-11: Dead-letter API and admin page (3 pts)
+**AC:**
+- These endpoints exist:
+  - `GET /api/dead-letters` returns `{total, deadLetters[]}`, oldest first, with the lot, user, failure time, reason, stack trace and raw body.
+  - `POST /api/dead-letters/{id}/retry`
+  - `POST /api/dead-letters/retry`, which retries all.
+  - `DELETE /api/dead-letters/{id}`
+- The id is the scan's `clientId`, or `sha-…` for a message that can't be read.
+- Each call looks at the oldest 500 messages at most, on a dedicated channel. It acks the messages it acts on and requeues the rest.
+- A retry strips the failure headers, so a scan that fails again is reported with its new reason. Retrying is safe because the listener skips scans that are already stored.
+- A discarded message's body is logged at WARN.
+- The `/dead-letters` page has Refresh, Retry all, a Retry button per row, and a Discard button per row that needs two clicks to confirm.
+**Reference:** `scan/deadletter/DeadLetterService.java`, `DeadLetterController.java`, `DeadLetter.java`, `DeadLetterPageConfig.java`, `messaging/DedicatedChannel.java`, `static/dead-letters.html`, `static/js/dead-letters.js`, tests in `scan/deadletter/`
+**Depends on:** OSC-10
+
+### OSC-12: Publish lot events through a transactional outbox (5 pts)
+**Description:** Publish every committed lot change to the topic exchange `orthanc.lots` for other applications.
+**AC:**
+- The `LotEventMessage` contract is versioned with `schemaVersion=1`. Its fields are `eventId`, `type`, `sequence`, `occurredAt`, `lotId`, `lot` (state after the event), `from`, `to`, `scan`, `discrepancy`, `rejectionReason` and `previousStatus`.
+- Routing keys:
+  - `lot.moved`
+  - `lot.scanned`
+  - `lot.location-corrected`
+  - `lot.scan-rejected`
+  - `lot.status-changed`
+  - `lot.hold-changed`
+- `LotEventRecorder` writes rows to `lot_outbox_events` in the same transaction as the lot change. The row id is increasing and becomes `sequence`.
+- `OutboxRelay` runs `@Scheduled` every `relay-interval`. It publishes unpublished rows in id order, in batches of `batch-size`, with publisher confirms (`confirm-timeout`), and sets `publishedAt`.
+- If the broker is down, events wait and keep their order, and the outage is logged once.
+- A cleanup cron deletes published rows older than `retention` (7d).
+- AMQP properties: `messageId=eventId`, `type`, `content_type=application/json` and `timestamp`.
+- The app declares only the exchange; subscribers declare their own queues.
+- A README section documents the contract, delivery guarantees (at least once, de-duplicate on `eventId`, order by `sequence`) and a subscriber example.
+- Known limit: this assumes a single instance. Running several needs row locking, which is out of scope.
+**Reference:** `lot/events/*` (`LotEventMessage`, `LotEventRecorder`, `OutboxEvent`, `OutboxEventRepository`, `OutboxRelay`, `LotEventsConfig`), tests `LotEventRecorderTest`, `OutboxRelayTest`
+**Depends on:** OSC-6, OSC-9
+
+### OSC-13: Oracle schema scripts and schema guard test (2 pts)
+**AC:**
+- `db/oracle/create-schema.sql` creates every table and index above, and `drop-schema.sql` drops them.
+- `SchemaTest` checks that columns holding enum names are plain strings (no check constraints), so adding a value later needs no migration.
+**Reference:** `src/main/resources/db/oracle/*.sql`, `src/test/.../SchemaTest.java`
+**Depends on:** OSC-12
+
+### OSC-14: Developer docs and API samples (1 pt)
+**AC:**
+- The README is complete. It covers config files, local modes 2 and 3 (personal queue, routing key and DLQ names), the failed-scans runbook and lot events.
+- `api-requests/lot-api.http` and `lot-api-curl.txt` cover every endpoint.
+**Reference:** `README.md`, `api-requests/`
+**Depends on:** all
+
+---
+
+## Build order / parallelism
+OSC-1 → (OSC-2 ∥ OSC-3) → OSC-4 → OSC-5; then OSC-6 (needs 2 and 3) → OSC-7 → OSC-8; OSC-9; OSC-10 → OSC-11 (can start after 2); OSC-12 → OSC-13 → OSC-14. Total: about 39 points.
+
