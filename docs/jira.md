@@ -221,9 +221,49 @@ Spring Boot service (port 3001). It does five things:
 **Description:** Static plain-JS pages served by this app (not the Angular scan UI).
 **AC:**
 - `/lot-stages` shows a table of each stage, its valid next stages and its WIP locations, and lets you edit them through the PUT API.
-- `/lot-stage-barcodes` renders printable stage and WIP barcodes with the vendored JsBarcode, and has a Print button.
-- Both pages share `css/lot-stages.css` and are reachable at the extensionless paths through a view-controller config.
-**Reference:** `src/main/resources/static/lot-stages.html`, `static/js/lot-stages.js`, `static/lot-stage-barcodes.html`, `static/js/lot-stage-barcodes.js`, `stage/LotStagePageConfig.java`, test `stage/LotStagePageTest.java`
+- Each stage row on `/lot-stages` has a **Barcodes** button that opens that stage's barcode sheet (spec below).
+- Both pages share `css/lot-stages.css`. View controllers serve them at extensionless paths: `/lot-stages` → `lot-stages.html` and `/lot-stages/barcodes` → `lot-stage-barcodes.html`.
+
+**Barcode spec:**
+
+**Page:** `GET /lot-stages/barcodes?stage=<stageId>`. There is one sheet per stage, to be printed and posted at that station. It lists every destination an operator can scan from there.
+
+**Encoding**
+
+| Setting | Value |
+|---|---|
+| Symbology | **Code 128** (JsBarcode `format: 'CODE128'`, automatic A/B/C subset) |
+| Library | JsBarcode v3.12.3, vendored at `static/js/vendor/JsBarcode.all.min.js` (no CDN) |
+| Rendering | SVG with a `viewBox`, so CSS can scale it without distorting the bars; `role="img"`, `aria-label="Barcode <value>"` |
+| Module (bar) width | 1.5 px, the same on every label so they all scan alike; it shrinks only if the label would overflow |
+| Bar height | 60 px |
+| Quiet zone | 10 px margin on every side |
+| Human-readable text | The encoded value, printed under the bars in monospace 14 px |
+
+**Contents.** A barcode encodes the **raw internal id** with no prefix, check text or JSON wrapper. This is the same value the producer's scan form submits as `destinationStage` / `destinationWipLocation`. The human-readable title above the bars is the description, never the encoded value.
+
+| Label | Encoded value | Title above the bars | Example (encoded / title) |
+|---|---|---|---|
+| WIP location | WIP id | WIP description, or the id when it has none | `WAFER-PREP-001` / "Wafer Prep 1" |
+| Next stage | stage id | stage description | `wafer-prep` / "Wafer Prep" |
+
+**Sheet layout, in order**
+1. A **"WIP Locations"** section with this stage's own WIP locations, for moves within the stage. It's left out when the stage has none.
+2. One **"Next Stage: <description>"** section per next stage, in `next-stages` order. Each section starts with that stage's own barcode, followed by its WIP locations. When `next-wip-locations` restricts that next stage, only the allowed WIPs are printed; `[]` means the stage barcode only. A next-stage id that no longer exists is skipped.
+
+**States and print**
+- Missing `stage` param: "No stage selected. Open this page from the Barcodes button on Lot Stages."
+- Unknown stage: "Unknown stage: <id>".
+- JsBarcode failed to load: "The barcode library failed to load."
+- API failure: "Could not load lot stages: …".
+- A stage with nothing to print shows "This stage has no next stages or WIP locations to print."
+- A value Code 128 can't encode (e.g. non-ASCII) shows "<value> can't be encoded as a barcode" in place of that label; the rest of the sheet still renders.
+- The page title and heading read "Barcodes — <stage description>".
+- The **Print** button (`window.print()`) appears only once the sheet has rendered. The `@media print` styles hide the toolbar and `.no-print` elements and keep the label grid.
+
+**Constraint on ids (OSC-3/OSC-4):** stage and WIP ids are printed as Code 128, so keep them to printable ASCII (e.g. `A–Z 0–9 -`). The API doesn't validate this today.
+
+**Reference:** `src/main/resources/static/lot-stages.html`, `static/js/lot-stages.js`, `static/lot-stage-barcodes.html`, `static/js/lot-stage-barcodes.js` (`barcode()`, `label()`, `wipLabels()`, `load()`), `static/js/vendor/JsBarcode.all.min.js`, `static/css/lot-stages.css` (`.barcode-*`, `@media print`), `stage/LotStagePageConfig.java`, test `stage/LotStagePageTest.java`
 **Depends on:** OSC-4
 
 ### OSC-6: Lot aggregate and scan rules (5 pts)
