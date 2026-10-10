@@ -46,7 +46,7 @@ Spring Boot service (port 3001). It does five things:
 **AC:**
 - The app declares the direct exchange `orthanc.scans`, the durable queue `orthanc.scans`, and a binding with `scan.created`. All three names come from `app.scans.*` properties.
 - A Jackson JSON message converter is in place.
-- `ScanRecord` has these fields: `clientId`, `userName`, `currentStage`, `lotId`, `destinationStage`, `destinationWipLocation`, `scanType`, `note`, `correctionReason`.
+- `ScanRecord` has these fields: `clientId`, `userName`, `currentStage`, `lotId`, `destinationStage`, `destinationWipLocation`, `scanType`, `note`, `correctionReason`, `locationConfirmed`.
 - `scanType` is stored as a string, not an enum ordinal.
 - The listener is `@Transactional`. It skips a scan whose `clientId` is already stored, logs it at INFO, and otherwise saves a `ScanEntity` with `receivedAt` and then calls the lot command (OSC-6).
 - `GET /api/scans` returns scans newest first, and `GET /api/scans/{clientId}` returns 404 when the scan is missing.
@@ -66,7 +66,8 @@ Spring Boot service (port 3001). It does five things:
 | `destinationWipLocation` | string | no | WIP location to move the lot to |
 | `scanType` | enum | no | Stored only; the consumer works out the type itself (OSC-6) |
 | `note` | string | no | Free text, up to 2000 characters |
-| `correctionReason` | string | no | Set when the operator confirmed the lot is at `currentStage` although the records disagreed |
+| `correctionReason` | string | no | Optional reason the operator gave with `locationConfirmed` |
+| `locationConfirmed` | boolean | no | True when the operator confirmed the lot is at `currentStage` although the records disagreed. Absent from older producers, which confirmed with a non-blank `correctionReason` alone |
 
 ```json
 {
@@ -78,7 +79,8 @@ Spring Boot service (port 3001). It does five things:
   "destinationWipLocation": "WAFER-PREP-001",
   "scanType": "transitional",
   "note": "",
-  "correctionReason": null
+  "correctionReason": null,
+  "locationConfirmed": null
 }
 ```
 
@@ -103,6 +105,7 @@ Spring Boot service (port 3001). It does five things:
     "scanType": "transitional",
     "note": "",
     "correctionReason": null,
+    "locationConfirmed": null,
     "receivedAt": "2026-10-08T13:45:00Z"
   }
   ```
@@ -277,7 +280,7 @@ Spring Boot service (port 3001). It does five things:
 - Derived type: INFORMATIONAL if the destination stage equals the scan stage, otherwise TRANSITIONAL.
 - Checks run in this order:
   1. A lot that isn't ACTIVE gets `ScanRejected` with `LOT_CANCELED`, `LOT_DESTROYED` or `LOT_COMPLETE`.
-  2. **Location correction.** If the records have the lot at another stage than the scan stage (and not already at the scan's destination), it emits `LocationCorrected` and moves the lot to the scan stage first. The discrepancy is `LOCATION_CORRECTED` when a `correctionReason` is given, otherwise `LOCATION_MISMATCH_UNCONFIRMED`.
+  2. **Location correction.** If the records have the lot at another stage than the scan stage (and not already at the scan's destination), it emits `LocationCorrected` and moves the lot to the scan stage first. The discrepancy is `LOCATION_CORRECTED` when the scan is `locationConfirmed` (or, from older producers, has a non-blank `correctionReason`), otherwise `LOCATION_MISMATCH_UNCONFIRMED`.
   3. A held lot leaving its stage gets `ScanRejected(LOT_ON_HOLD)`. Moves within the same stage are allowed.
   4. A cross-stage move that `StageRoutes` doesn't allow is still applied, but flagged `OFF_ROUTE`.
   5. Otherwise it emits `ScanApplied(from, to, discrepancy)`.
@@ -355,7 +358,7 @@ Spring Boot service (port 3001). It does five things:
 | `exception` | enum \| null | Discrepancy, when the row is flagged for review |
 | `correctsClientId` | string \| null | For a correction, the earlier scan that put the lot where the records wrongly had it |
 
-A correction row has `clientId` set to the scan's id plus `#correction`, `note` set to the scan's `correctionReason`, and `occurredAt` set 1µs before the scan's own row, so it sorts just before it. A rejected row has `from` equal to `to`, both being where the lot stayed.
+A correction row has `clientId` set to the scan's id plus `#correction`, `note` set to the scan's `correctionReason` (null if none was given), and `occurredAt` set 1µs before the scan's own row, so it sorts just before it. A rejected row has `from` equal to `to`, both being where the lot stayed.
 
 - 200:
   ```json

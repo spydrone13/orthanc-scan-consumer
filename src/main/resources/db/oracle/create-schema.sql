@@ -65,6 +65,7 @@ CREATE TABLE scans (
     scan_type                VARCHAR2(255 CHAR),
     note                     VARCHAR2(2000 CHAR),
     correction_reason        VARCHAR2(2000 CHAR),
+    location_confirmed       NUMBER(1) CHECK (location_confirmed IN (0, 1)),
     received_at              TIMESTAMP(6) WITH TIME ZONE,
     CONSTRAINT pk_scans PRIMARY KEY (client_id)
 );

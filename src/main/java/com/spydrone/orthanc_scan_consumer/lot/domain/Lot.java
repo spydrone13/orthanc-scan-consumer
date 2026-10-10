@@ -109,7 +109,7 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 			return;
 		}
 		Location corrected = new Location(scanStage, null);
-		Discrepancy discrepancy = blankToNull(scan.correctionReason()) != null
+		Discrepancy discrepancy = scan.confirmsLocation()
 				? Discrepancy.LOCATION_CORRECTED
 				: Discrepancy.LOCATION_MISMATCH_UNCONFIRMED;
 		registerEvent(new LocationCorrected(lotId, scan, recorded, corrected, discrepancy, lastScanClientId, at));

@@ -162,7 +162,18 @@ class LotTest {
 	void confirmedCorrectionIsFlaggedAsCorrected() {
 		Lot lot = lotAt("S5", null);
 
-		lot.applyScan(new Scan("abc", "u", "S2", "S3", null, "n", "It was on the S2 rack"), ROUTES, NOW);
+		lot.applyScan(new Scan("abc", "u", "S2", "S3", null, "n", "It was on the S2 rack", null), ROUTES, NOW);
+
+		List<?> events = events(lot);
+		assertThat(((LocationCorrected) events.get(events.size() - 2)).discrepancy())
+				.isEqualTo(Discrepancy.LOCATION_CORRECTED);
+	}
+
+	@Test
+	void correctionConfirmedWithoutAReasonIsFlaggedAsCorrected() {
+		Lot lot = lotAt("S5", null);
+
+		lot.applyScan(new Scan("abc", "u", "S2", "S3", null, "n", null, true), ROUTES, NOW);
 
 		List<?> events = events(lot);
 		assertThat(((LocationCorrected) events.get(events.size() - 2)).discrepancy())
@@ -329,12 +340,12 @@ class LotTest {
 	}
 
 	private static Scan scan(String stage, String destinationStage, String destinationWipLocation) {
-		return new Scan("abc", "u", stage, destinationStage, destinationWipLocation, "n", null);
+		return new Scan("abc", "u", stage, destinationStage, destinationWipLocation, "n", null, null);
 	}
 
 	private static Lot lotAt(String stage, String wipLocation) {
 		Lot lot = Lot.firstScanned("L1");
-		lot.applyScan(new Scan("setup", "u", stage, stage, wipLocation, "", null), ROUTES, EARLIER);
+		lot.applyScan(new Scan("setup", "u", stage, stage, wipLocation, "", null, null), ROUTES, EARLIER);
 		return lot;
 	}
 

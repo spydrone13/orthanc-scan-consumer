@@ -98,6 +98,6 @@ class LotCommandHandlerTest {
 
 	private static ScanRecord scan(String clientId, String stage, String destinationStage, String destinationWip) {
 		return new ScanRecord(clientId, "u", stage, "L1", destinationStage, destinationWip, ScanType.INFORMATIONAL, "n",
-				null);
+				null, null);
 	}
 }

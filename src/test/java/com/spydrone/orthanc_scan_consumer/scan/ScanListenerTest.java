@@ -16,7 +16,7 @@ import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
 class ScanListenerTest {
 
 	private static final ScanRecord RECORD =
-			new ScanRecord("abc", "u", "S1", "L1", "S2", "W1", ScanType.TRANSITIONAL, "", null);
+			new ScanRecord("abc", "u", "S1", "L1", "S2", "W1", ScanType.TRANSITIONAL, "", null, null);
 
 	private final ScanRepository repository = mock(ScanRepository.class);
 	private final LotCommandHandler lotCommands = mock(LotCommandHandler.class);

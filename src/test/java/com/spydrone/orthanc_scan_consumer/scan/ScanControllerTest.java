@@ -19,7 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class ScanControllerTest {
 
 	private static final ScanEntity SCAN = ScanEntity.from(
-			new ScanRecord("abc", "u", "S1", "L1", "S2", "W1", ScanType.TRANSITIONAL, "n", null), Instant.now());
+			new ScanRecord("abc", "u", "S1", "L1", "S2", "W1", ScanType.TRANSITIONAL, "n", null, null), Instant.now());
 
 	@Autowired
 	private MockMvc mvc;

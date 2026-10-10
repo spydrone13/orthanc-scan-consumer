@@ -24,6 +24,7 @@ public class ScanEntity {
 	private String note;
 	@Column(length = 2000)
 	private String correctionReason;
+	private Boolean locationConfirmed;
 	private Instant receivedAt;
 
 	protected ScanEntity() {
@@ -40,6 +41,7 @@ public class ScanEntity {
 		entity.scanType = record.scanType() == null ? null : record.scanType().name();
 		entity.note = record.note();
 		entity.correctionReason = record.correctionReason();
+		entity.locationConfirmed = record.locationConfirmed();
 		entity.receivedAt = receivedAt;
 		return entity;
 	}
@@ -78,6 +80,10 @@ public class ScanEntity {
 
 	public String getCorrectionReason() {
 		return correctionReason;
+	}
+
+	public Boolean getLocationConfirmed() {
+		return locationConfirmed;
 	}
 
 	public Instant getReceivedAt() {

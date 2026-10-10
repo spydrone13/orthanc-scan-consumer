@@ -111,7 +111,7 @@ class LotQueriesTest {
 	private void scan(String clientId, String lotId, String stage, String destinationStage, String wip,
 			Instant at) {
 		commands.handle(ApplyScan.from(
-				new ScanRecord(clientId, "u", stage, lotId, destinationStage, wip, ScanType.INFORMATIONAL, "", null),
+				new ScanRecord(clientId, "u", stage, lotId, destinationStage, wip, ScanType.INFORMATIONAL, "", null, null),
 				at));
 	}
 }
