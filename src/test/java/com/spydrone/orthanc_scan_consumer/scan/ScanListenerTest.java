@@ -10,8 +10,8 @@ import static org.mockito.Mockito.verify;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import com.spydrone.orthanc_scan_consumer.lot.application.ApplyScan;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
 
 class ScanListenerTest {
 

@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.application;
+package com.spydrone.orthanc_scan_consumer.lot.application.query;
 
 import java.time.Instant;
 import java.util.List;
@@ -7,7 +7,8 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEventRepository;
+import com.spydrone.orthanc_scan_consumer.lot.application.LotNotFoundException;
+import com.spydrone.orthanc_scan_consumer.lot.application.history.LotStageEventRepository;
 
 /** The read side for lots. Never changes anything. */
 @Service

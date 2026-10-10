@@ -11,12 +11,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
+import com.spydrone.orthanc_scan_consumer.lot.application.history.LotHistoryRecorder;
+import com.spydrone.orthanc_scan_consumer.lot.application.history.LotStageEvent;
+import com.spydrone.orthanc_scan_consumer.lot.application.history.LotStageEventRepository;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Location;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotRepository;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
-import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEvent;
-import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEventRepository;
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 import com.spydrone.orthanc_scan_consumer.stage.LotStageRoutes;

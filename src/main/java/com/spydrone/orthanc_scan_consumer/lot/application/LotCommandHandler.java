@@ -3,6 +3,10 @@ package com.spydrone.orthanc_scan_consumer.lot.application;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
+import com.spydrone.orthanc_scan_consumer.lot.application.history.LotHistoryRecorder;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotRepository;
 import com.spydrone.orthanc_scan_consumer.lot.domain.StageRoutes;

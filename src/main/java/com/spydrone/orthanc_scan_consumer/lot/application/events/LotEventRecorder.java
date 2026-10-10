@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.events;
+package com.spydrone.orthanc_scan_consumer.lot.application.events;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -6,6 +6,9 @@ import java.util.UUID;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
+import com.spydrone.orthanc_scan_consumer.lot.application.events.LotEventMessage.LotState;
+import com.spydrone.orthanc_scan_consumer.lot.application.events.LotEventMessage.Place;
+import com.spydrone.orthanc_scan_consumer.lot.application.events.LotEventMessage.ScanInfo;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Location;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LocationCorrected;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
@@ -16,9 +19,6 @@ import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatusChanged;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Scan;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ScanApplied;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ScanRejected;
-import com.spydrone.orthanc_scan_consumer.lot.events.LotEventMessage.LotState;
-import com.spydrone.orthanc_scan_consumer.lot.events.LotEventMessage.Place;
-import com.spydrone.orthanc_scan_consumer.lot.events.LotEventMessage.ScanInfo;
 
 import tools.jackson.databind.json.JsonMapper;
 

@@ -7,9 +7,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.spydrone.orthanc_scan_consumer.lot.application.LotQueries;
-import com.spydrone.orthanc_scan_consumer.lot.application.LotStageEventView;
-import com.spydrone.orthanc_scan_consumer.lot.application.LotView;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotQueries;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotStageEventView;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotView;
 
 @RestController
 @RequestMapping("/api/lots")

@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.application;
+package com.spydrone.orthanc_scan_consumer.lot.application.history;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,8 +8,6 @@ import org.springframework.stereotype.Component;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LocationCorrected;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ScanApplied;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ScanRejected;
-import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEvent;
-import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEventRepository;
 
 /** Writes each scan's outcome to the lot's history, in the transaction that saved the lot. */
 @Component

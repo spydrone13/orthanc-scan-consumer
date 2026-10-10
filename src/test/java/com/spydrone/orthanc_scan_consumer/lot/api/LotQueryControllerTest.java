@@ -15,9 +15,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.spydrone.orthanc_scan_consumer.lot.application.LotNotFoundException;
-import com.spydrone.orthanc_scan_consumer.lot.application.LotQueries;
-import com.spydrone.orthanc_scan_consumer.lot.application.LotStageEventView;
-import com.spydrone.orthanc_scan_consumer.lot.application.LotView;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotQueries;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotStageEventView;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotView;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 

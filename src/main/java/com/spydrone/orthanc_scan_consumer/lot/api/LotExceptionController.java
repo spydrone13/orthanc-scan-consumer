@@ -8,8 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.spydrone.orthanc_scan_consumer.lot.application.LotExceptionView;
-import com.spydrone.orthanc_scan_consumer.lot.application.LotQueries;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotExceptionView;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotQueries;
 
 /** Scans flagged for review: off-route moves and corrected lot locations. */
 @RestController

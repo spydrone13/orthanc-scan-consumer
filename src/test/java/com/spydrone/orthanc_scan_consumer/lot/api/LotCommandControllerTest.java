@@ -17,10 +17,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.spydrone.orthanc_scan_consumer.lot.application.ChangeLotStatus;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotNotFoundException;
-import com.spydrone.orthanc_scan_consumer.lot.application.SetLotHold;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
 

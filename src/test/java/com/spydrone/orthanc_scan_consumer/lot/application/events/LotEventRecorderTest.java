@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.events;
+package com.spydrone.orthanc_scan_consumer.lot.application.events;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,14 +13,14 @@ import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Sort;
 
-import com.spydrone.orthanc_scan_consumer.lot.application.ApplyScan;
-import com.spydrone.orthanc_scan_consumer.lot.application.ChangeLotStatus;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
-import com.spydrone.orthanc_scan_consumer.lot.application.SetLotHold;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
+import com.spydrone.orthanc_scan_consumer.lot.application.events.LotEventMessage.LotState;
+import com.spydrone.orthanc_scan_consumer.lot.application.events.LotEventMessage.Place;
+import com.spydrone.orthanc_scan_consumer.lot.application.events.LotEventMessage.ScanInfo;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
-import com.spydrone.orthanc_scan_consumer.lot.events.LotEventMessage.LotState;
-import com.spydrone.orthanc_scan_consumer.lot.events.LotEventMessage.Place;
-import com.spydrone.orthanc_scan_consumer.lot.events.LotEventMessage.ScanInfo;
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 import com.spydrone.orthanc_scan_consumer.stage.LotStageRoutes;

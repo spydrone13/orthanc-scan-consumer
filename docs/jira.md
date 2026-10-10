@@ -287,7 +287,7 @@ Spring Boot service (port 3001). It does five things:
 - `LotStageRoutes` implements `StageRoutes` over the lot-stage config (next stage required, and the WIP must be allowed per OSC-3).
 - Statuses are serialized lowercase (`active`, `canceled`, `destroyed`, `complete`), and stored as strings with a column default of `ACTIVE`.
 - Unit tests cover every branch above.
-**Reference:** `lot/domain/*` (`Lot`, `Scan`, `Location`, `StageRoutes`, `Discrepancy`, `RejectionReason`, `LotStatus`, event records), `lot/application/LotCommandHandler.java`, `lot/application/ApplyScan.java`, `stage/LotStageRoutes.java`, test `lot/domain/LotTest.java`
+**Reference:** `lot/domain/*` (`Lot`, `Scan`, `Location`, `StageRoutes`, `Discrepancy`, `RejectionReason`, `LotStatus`, event records), `lot/application/LotCommandHandler.java`, `lot/application/command/ApplyScan.java`, `stage/LotStageRoutes.java`, test `lot/domain/LotTest.java`
 **Depends on:** OSC-2, OSC-3
 
 ### OSC-7: Lot history (2 pts)
@@ -296,7 +296,7 @@ Spring Boot service (port 3001). It does five things:
 - `@EventListener`s for `ScanApplied`, `LocationCorrected` and `ScanRejected` write rows to `lot_stage_events`. Each row has the scan type (including `CORRECTION`), from/to, the exception (discrepancy or rejection reason) and `correctsClientId`.
 - Discrepancies and rejections are logged at WARN.
 - The table has indexes on `(lot_id, occurred_at)` and `(occurred_at)`.
-**Reference:** `lot/application/LotHistoryRecorder.java`, `lot/history/LotStageEvent.java`, `lot/history/LotStageEventRepository.java`
+**Reference:** `lot/application/history/LotHistoryRecorder.java`, `lot/application/history/LotStageEvent.java`, `lot/application/history/LotStageEventRepository.java`
 **Depends on:** OSC-6
 
 ### OSC-8: Lot query API (3 pts)
@@ -410,7 +410,7 @@ A correction row has `clientId` set to the scan's id plus `#correction`, `note` 
   ]
   ```
 - 400: `since` isn't a valid instant.
-**Reference:** `lot/api/LotQueryController.java`, `lot/api/LotExceptionController.java`, `lot/api/LotApiExceptionHandler.java`, `lot/application/LotQueries.java`, `LotView.java`, `LotViewRepository.java`, `LotStageEventView.java`, `LotExceptionView.java`, tests `LotQueriesTest`, `LotQueryControllerTest`
+**Reference:** `lot/api/LotQueryController.java`, `lot/api/LotExceptionController.java`, `lot/api/LotApiExceptionHandler.java`, `lot/application/query/LotQueries.java`, `LotView.java`, `LotViewRepository.java`, `LotStageEventView.java`, `LotExceptionView.java`, tests `LotQueriesTest`, `LotQueryControllerTest`
 **Depends on:** OSC-7
 
 ### OSC-9: Lot command API: status and hold (2 pts)
@@ -446,7 +446,7 @@ A correction row has `clientId` set to the scan's id plus `#correction`, `note` 
 - 200: the `LotView`, with `"onHold": true` and `lastScan: null`.
 - 400: `"onHold is required"`.
 - 404: unknown lot.
-**Reference:** `lot/api/LotCommandController.java`, `LotStatusUpdate.java`, `LotHoldUpdate.java`, `lot/application/ChangeLotStatus.java`, `SetLotHold.java`, tests `LotCommandControllerTest`, `LotCommandHandlerTest`
+**Reference:** `lot/api/LotCommandController.java`, `LotStatusUpdate.java`, `LotHoldUpdate.java`, `lot/application/command/ChangeLotStatus.java`, `SetLotHold.java`, tests `LotCommandControllerTest`, `LotCommandHandlerTest`
 **Depends on:** OSC-6
 
 ### OSC-10: Retry and dead-letter queue for failed scans (3 pts)
@@ -616,7 +616,7 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
   "discrepancy": null, "rejectionReason": null, "previousStatus": "active"
 }
 ```
-**Reference:** `lot/events/*` (`LotEventMessage`, `LotEventRecorder`, `OutboxEvent`, `OutboxEventRepository`, `OutboxRelay`, `LotEventsConfig`), tests `LotEventRecorderTest`, `OutboxRelayTest`
+**Reference:** `lot/application/events/` (`LotEventMessage`, `LotEventRecorder`, `OutboxEvent`, `OutboxEventRepository`, `OutboxRelay`, `LotEventsConfig`), tests `LotEventRecorderTest`, `OutboxRelayTest`
 **Depends on:** OSC-6, OSC-9
 
 ### OSC-13: Oracle schema scripts and schema guard test (2 pts)

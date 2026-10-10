@@ -10,10 +10,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.spydrone.orthanc_scan_consumer.lot.application.ChangeLotStatus;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
-import com.spydrone.orthanc_scan_consumer.lot.application.LotView;
-import com.spydrone.orthanc_scan_consumer.lot.application.SetLotHold;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotView;
 
 @RestController
 @RequestMapping("/api/lots")

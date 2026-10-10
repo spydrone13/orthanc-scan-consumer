@@ -1,9 +1,9 @@
-package com.spydrone.orthanc_scan_consumer.lot.application;
+package com.spydrone.orthanc_scan_consumer.lot.application.query;
 
 import java.time.Instant;
 
+import com.spydrone.orthanc_scan_consumer.lot.application.history.LotStageEvent;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Discrepancy;
-import com.spydrone.orthanc_scan_consumer.lot.history.LotStageEvent;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 
 /** Read model for a row of a lot's history, as returned by /api/lots/{lotId}/events. */

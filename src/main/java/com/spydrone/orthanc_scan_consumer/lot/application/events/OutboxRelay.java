@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.events;
+package com.spydrone.orthanc_scan_consumer.lot.application.events;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;

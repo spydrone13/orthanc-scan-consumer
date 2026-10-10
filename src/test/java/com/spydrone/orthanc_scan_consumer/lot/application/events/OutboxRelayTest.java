@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.events;
+package com.spydrone.orthanc_scan_consumer.lot.application.events;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;

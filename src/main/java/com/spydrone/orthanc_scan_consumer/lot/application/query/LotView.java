@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.application;
+package com.spydrone.orthanc_scan_consumer.lot.application.query;
 
 import java.time.Instant;
 

@@ -8,8 +8,8 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.spydrone.orthanc_scan_consumer.lot.application.ApplyScan;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
 
 @Component
 public class ScanListener {

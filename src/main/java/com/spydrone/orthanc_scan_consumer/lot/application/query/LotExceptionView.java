@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.application;
+package com.spydrone.orthanc_scan_consumer.lot.application.query;
 
 /**
  * Read model for a history row flagged for review, as returned by /api/lot-exceptions.

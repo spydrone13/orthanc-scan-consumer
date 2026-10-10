@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.application;
+package com.spydrone.orthanc_scan_consumer.lot.application.query;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,7 +12,7 @@ import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
 interface LotViewRepository extends Repository<Lot, String> {
 
 	/** The last scan comes from its history row; lots stored before it was kept have none. */
-	String SELECT_VIEW = "select new com.spydrone.orthanc_scan_consumer.lot.application.LotView("
+	String SELECT_VIEW = "select new com.spydrone.orthanc_scan_consumer.lot.application.query.LotView("
 			+ "l.lotId, l.location.stage, l.location.wipLocation, l.status, l.onHold, l.updatedAt,"
 			+ " e.clientId, e.userName, e.occurredAt)"
 			+ " from Lot l left join LotStageEvent e on e.clientId = l.lastScanClientId";

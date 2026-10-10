@@ -1,11 +1,11 @@
-package com.spydrone.orthanc_scan_consumer.lot.history;
+package com.spydrone.orthanc_scan_consumer.lot.application.history;
 
 import java.time.Duration;
 import java.time.Instant;
 
 import com.spydrone.orthanc_scan_consumer.lot.domain.Discrepancy;
-import com.spydrone.orthanc_scan_consumer.lot.domain.LocationCorrected;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Location;
+import com.spydrone.orthanc_scan_consumer.lot.domain.LocationCorrected;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Scan;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ScanApplied;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ScanRejected;

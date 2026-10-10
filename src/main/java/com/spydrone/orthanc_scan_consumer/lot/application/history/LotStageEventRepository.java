@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.history;
+package com.spydrone.orthanc_scan_consumer.lot.application.history;
 
 import java.time.Instant;
 import java.util.List;

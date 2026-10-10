@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.events;
+package com.spydrone.orthanc_scan_consumer.lot.application.events;
 
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.beans.factory.annotation.Value;

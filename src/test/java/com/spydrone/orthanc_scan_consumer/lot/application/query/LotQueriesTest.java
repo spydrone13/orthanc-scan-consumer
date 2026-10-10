@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.lot.application;
+package com.spydrone.orthanc_scan_consumer.lot.application.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -14,6 +14,11 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
+import com.spydrone.orthanc_scan_consumer.lot.application.LotNotFoundException;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
+import com.spydrone.orthanc_scan_consumer.lot.application.history.LotHistoryRecorder;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Discrepancy;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;

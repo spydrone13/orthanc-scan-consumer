@@ -33,10 +33,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.rabbitmq.RabbitMQContainer;
 
-import com.spydrone.orthanc_scan_consumer.lot.application.ApplyScan;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
-import com.spydrone.orthanc_scan_consumer.lot.application.LotQueries;
-import com.spydrone.orthanc_scan_consumer.lot.application.LotView;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotQueries;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotView;
 import com.spydrone.orthanc_scan_consumer.scan.deadletter.DeadLetter;
 import com.spydrone.orthanc_scan_consumer.scan.deadletter.DeadLetterService;
 
