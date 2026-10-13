@@ -32,18 +32,20 @@ Spring Boot service (port 3001). It does five things:
 
 ### CON-1: Project scaffold and configuration (2 pts)
 **Description:** Create the Spring Boot 4.1 / Java project with Maven wrapper and the starters: amqp, webmvc, data-jpa, h2console, and h2 at runtime. Set up the layered configuration.
-**AC:**
+
+#### AC:
 - App starts on port 3001 with `spring.application.name=orthanc-scan-consumer`.
 - H2 is file-backed at `./data/orthanc-consumer;AUTO_SERVER=TRUE`, with `ddl-auto=update` and the H2 console enabled.
 - `spring.config.import=optional:classpath:application-secrets.properties` is set, and the `local` profile loads `application-local.properties`.
 - Both files are git-ignored and left out of the jar by a `maven-jar-plugin` exclude.
 - `spring.mvc.problemdetails.enabled=true`.
 - The README documents the config precedence and the three local run modes, including the Docker RabbitMQ command.
-**Reference:** `pom.xml`, `src/main/resources/application.properties`, `.gitignore`, `README.md`
+#### **Reference:** `pom.xml`, `src/main/resources/application.properties`, `.gitignore`, `README.md`
 
 ### CON-2: Scan intake over RabbitMQ (3 pts)
 **Description:** Declare the scan topology to match the producer and consume `ScanRecord` JSON messages. Store each scan once.
-**AC:**
+
+#### AC:
 - The app declares the direct exchange `orthanc.scans`, the durable queue `orthanc.scans`, and a binding with `scan.created`. All three names come from `app.scans.*` properties.
 - A Jackson JSON message converter is in place.
 - `ScanRecord` has these fields: `clientId`, `userName`, `currentStage`, `lotId`, `destinationStage`, `destinationWipLocation`, `scanType`, `note`, `correctionReason`, `locationConfirmed`.
@@ -110,12 +112,13 @@ Spring Boot service (port 3001). It does five things:
   }
   ```
 - 404: the scan isn't stored.
-**Reference:** `scan/RabbitConfig.java`, `scan/ScanListener.java`, `scan/ScanRecord.java`, `scan/ScanEntity.java`, `scan/ScanController.java`, `scan/ScanType.java`
+#### **Reference:** `scan/RabbitConfig.java`, `scan/ScanListener.java`, `scan/ScanRecord.java`, `scan/ScanEntity.java`, `scan/ScanController.java`, `scan/ScanType.java`
 **Depends on:** CON-1
 
 ### CON-3: Lot-stage graph model, persistence, and seed (3 pts)
 **Description:** Model each stage as a description, an ordered list of next stages, its WIP locations in order, and optional per-next-stage WIP restrictions. Store the stages in the DB and seed them from JSON.
-**AC:**
+
+#### AC:
 - The tables are `lot_stages` (id, description, position) plus these collection tables, each ordered by `idx`:
   - `lot_stage_next_stages`
   - `lot_stage_wip_locations`
@@ -125,11 +128,12 @@ Spring Boot service (port 3001). It does five things:
 - A WIP location with no description defaults to the stage description plus the id's trailing number (`WAFER-PREP-001` → "Wafer Prep 1").
 - A next stage listed in `next-wip-locations` allows only the listed WIPs; an empty list means the stage itself only. A next stage that isn't listed allows any WIP.
 - A read leaves out restricted WIPs that the next stage no longer has.
-**Reference:** `stage/LotStage.java`, `stage/WipLocation.java`, `stage/LotStageEntity.java`, `stage/WipLocationEntry.java`, `stage/NextWipLocationEntry.java`, `stage/LotStageService.java`, `src/main/resources/lot-stages.json`
+#### **Reference:** `stage/LotStage.java`, `stage/WipLocation.java`, `stage/LotStageEntity.java`, `stage/WipLocationEntry.java`, `stage/NextWipLocationEntry.java`, `stage/LotStageService.java`, `src/main/resources/lot-stages.json`
 **Depends on:** CON-1
 
 ### CON-4: Lot-stage API (2 pts)
-**AC:**
+
+#### AC:
 - `GET /api/lot-stages` returns a map of stages keyed by id, in process order.
 - `PUT /api/lot-stages/{id}` replaces the stage's next stages, WIP locations and next-WIP restrictions. Description and order are not editable.
 - The PUT returns 404 for an unknown stage.
@@ -217,12 +221,13 @@ Spring Boot service (port 3001). It does five things:
   - `"dry-etching is not a next stage"`
   - `"Unknown WIP location X in stage wet-etching"`
 - 404: `"Unknown stage: foo"`.
-**Reference:** `stage/LotStageController.java`, `stage/LotStageUpdate.java`, `stage/LotStageService.java#update`, `scan/WebConfig.java`, tests `stage/LotStageServiceTest.java`, `stage/LotStageControllerTest.java`
+#### **Reference:** `stage/LotStageController.java`, `stage/LotStageUpdate.java`, `stage/LotStageService.java#update`, `scan/WebConfig.java`, tests `stage/LotStageServiceTest.java`, `stage/LotStageControllerTest.java`
 **Depends on:** CON-3
 
 ### CON-5: Lot-stage admin pages: config editor and barcode sheet (3 pts)
 **Description:** Static plain-JS pages served by this app (not the Angular scan UI).
-**AC:**
+
+#### AC:
 - `/lot-stages` shows a table of each stage, its valid next stages and its WIP locations, and lets you edit them through the PUT API.
 - Each stage row on `/lot-stages` has a **Barcodes** button that opens that stage's barcode sheet (spec below).
 - Both pages share `css/lot-stages.css`. View controllers serve them at extensionless paths: `/lot-stages` → `lot-stages.html` and `/lot-stages/barcodes` → `lot-stage-barcodes.html`.
@@ -266,7 +271,7 @@ Spring Boot service (port 3001). It does five things:
 
 **Constraint on ids (CON-3/CON-4):** stage and WIP ids are printed as Code 128, so keep them to printable ASCII (e.g. `A–Z 0–9 -`). The API doesn't validate this today.
 
-**Reference:** `src/main/resources/static/lot-stages.html`, `static/js/lot-stages.js`, `static/lot-stage-barcodes.html`, `static/js/lot-stage-barcodes.js` (`barcode()`, `label()`, `wipLabels()`, `load()`), `static/js/vendor/JsBarcode.all.min.js`, `static/css/lot-stages.css` (`.barcode-*`, `@media print`), `stage/LotStagePageConfig.java`, test `stage/LotStagePageTest.java`
+#### **Reference:** `src/main/resources/static/lot-stages.html`, `static/js/lot-stages.js`, `static/lot-stage-barcodes.html`, `static/js/lot-stage-barcodes.js` (`barcode()`, `label()`, `wipLabels()`, `load()`), `static/js/vendor/JsBarcode.all.min.js`, `static/css/lot-stages.css` (`.barcode-*`, `@media print`), `stage/LotStagePageConfig.java`, test `stage/LotStagePageTest.java`
 **Depends on:** CON-4
 
 ### CON-6: Lot aggregate and scan rules (5 pts)
@@ -287,21 +292,23 @@ Spring Boot service (port 3001). It does five things:
 - `LotStageRoutes` implements `StageRoutes` over the lot-stage config (next stage required, and the WIP must be allowed per CON-3).
 - Statuses are serialized lowercase (`active`, `canceled`, `destroyed`, `complete`), and stored as strings with a column default of `ACTIVE`.
 - Unit tests cover every branch above.
-**Reference:** `lot/domain/*` (`Lot`, `Scan`, `Location`, `StageRoutes`, `Discrepancy`, `RejectionReason`, `LotStatus`, event records), `lot/application/LotCommandHandler.java`, `lot/application/command/ApplyScan.java`, `stage/LotStageRoutes.java`, test `lot/domain/LotTest.java`
+#### **Reference:** `lot/domain/*` (`Lot`, `Scan`, `Location`, `StageRoutes`, `Discrepancy`, `RejectionReason`, `LotStatus`, event records), `lot/application/LotCommandHandler.java`, `lot/application/command/ApplyScan.java`, `stage/LotStageRoutes.java`, test `lot/domain/LotTest.java`
 **Depends on:** CON-2, CON-3
 
 ### CON-7: Lot history (2 pts)
 **Description:** Write a history row for each scan outcome, in the same transaction that saves the lot.
-**AC:**
+
+#### AC:
 - `@EventListener`s for `ScanApplied`, `LocationCorrected` and `ScanRejected` write rows to `lot_stage_events`. Each row has the scan type (including `CORRECTION`), from/to, the exception (discrepancy or rejection reason) and `correctsClientId`.
 - Discrepancies and rejections are logged at WARN.
 - The table has indexes on `(lot_id, occurred_at)` and `(occurred_at)`.
-**Reference:** `lot/application/history/LotHistoryRecorder.java`, `lot/application/history/LotStageEvent.java`, `lot/application/history/LotStageEventRepository.java`
+#### **Reference:** `lot/application/history/LotHistoryRecorder.java`, `lot/application/history/LotStageEvent.java`, `lot/application/history/LotStageEventRepository.java`
 **Depends on:** CON-6
 
 ### CON-8: Lot query API (3 pts)
 **Description:** The read side, which the producer calls before it publishes a scan.
-**AC:**
+
+#### AC:
 - `GET /api/lots` returns lots most recently updated first.
 - `GET /api/lots/{lotId}` returns a `LotView` with `lastScan {clientId, userName, at}`, built by a JPQL projection.
 - `GET /api/lots/{lotId}/events` returns history newest first.
@@ -410,11 +417,12 @@ A correction row has `clientId` set to the scan's id plus `#correction`, `note` 
   ]
   ```
 - 400: `since` isn't a valid instant.
-**Reference:** `lot/api/LotQueryController.java`, `lot/api/LotExceptionController.java`, `lot/api/LotApiExceptionHandler.java`, `lot/application/query/LotQueries.java`, `LotView.java`, `LotViewRepository.java`, `LotStageEventView.java`, `LotExceptionView.java`, tests `LotQueriesTest`, `LotQueryControllerTest`
+#### **Reference:** `lot/api/LotQueryController.java`, `lot/api/LotExceptionController.java`, `lot/api/LotApiExceptionHandler.java`, `lot/application/query/LotQueries.java`, `LotView.java`, `LotViewRepository.java`, `LotStageEventView.java`, `LotExceptionView.java`, tests `LotQueriesTest`, `LotQueryControllerTest`
 **Depends on:** CON-7
 
 ### CON-9: Lot command API: status and hold (2 pts)
-**AC:**
+
+#### AC:
 - `PUT /api/lots/{lotId}/status {status}` and `PUT /api/lots/{lotId}/hold {onHold}` return the updated `LotView`.
 - A missing field returns 400, and an unknown lot returns 404.
 - `LotStatusChanged` and `LotHoldChanged` are raised only when the value actually changes.
@@ -446,21 +454,23 @@ A correction row has `clientId` set to the scan's id plus `#correction`, `note` 
 - 200: the `LotView`, with `"onHold": true` and `lastScan: null`.
 - 400: `"onHold is required"`.
 - 404: unknown lot.
-**Reference:** `lot/api/LotCommandController.java`, `LotStatusUpdate.java`, `LotHoldUpdate.java`, `lot/application/command/ChangeLotStatus.java`, `SetLotHold.java`, tests `LotCommandControllerTest`, `LotCommandHandlerTest`
+#### **Reference:** `lot/api/LotCommandController.java`, `LotStatusUpdate.java`, `LotHoldUpdate.java`, `lot/application/command/ChangeLotStatus.java`, `SetLotHold.java`, tests `LotCommandControllerTest`, `LotCommandHandlerTest`
 **Depends on:** CON-6
 
 ### CON-10: Retry and dead-letter queue for failed scans (3 pts)
-**AC:**
+
+#### AC:
 - Listener retry is on: 2 retries, starting at 1s with multiplier 2 and a 10s max. Each attempt runs in its own rolled-back transaction, and `default-requeue-rejected=false`.
 - The scans queue has dead-letter args pointing at `orthanc.scans.dlx`, and the DLX is bound to the durable queue `orthanc.scans.dlq`.
 - `FailedScanRecoverer` (a `RepublishMessageRecoverer`) republishes to the DLX with the exception message, the stack trace and a failed-at ISO timestamp header, and logs the stack trace.
 - A message that can't be read as a scan also ends up in the DLQ.
 - The README covers the one-time broker upgrade (delete and redeclare the queue on `PRECONDITION_FAILED`).
-**Reference:** `scan/RabbitConfig.java`, `scan/deadletter/FailedScanRecoverer.java`, `application.properties`, tests `RabbitConfigTest`, `DeadLetterTest`
+#### **Reference:** `scan/RabbitConfig.java`, `scan/deadletter/FailedScanRecoverer.java`, `application.properties`, tests `RabbitConfigTest`, `DeadLetterTest`
 **Depends on:** CON-2
 
 ### CON-11: Dead-letter API and admin page (3 pts)
-**AC:**
+
+#### AC:
 - These endpoints exist:
   - `GET /api/dead-letters` returns `{total, deadLetters[]}`, oldest first, with the lot, user, failure time, reason, stack trace and raw body.
   - `POST /api/dead-letters/{id}/retry`
@@ -528,12 +538,13 @@ A correction row has `clientId` set to the scan's id plus `#correction`, `note` 
 **`DELETE /api/dead-letters/{id}`**: removes one message for good and logs its body at WARN.
 - 204: no body.
 - 404: `"No dead-lettered scan {id}"`.
-**Reference:** `scan/deadletter/DeadLetterService.java`, `DeadLetterController.java`, `DeadLetter.java`, `DeadLetterPageConfig.java`, `messaging/DedicatedChannel.java`, `static/dead-letters.html`, `static/js/dead-letters.js`, tests in `scan/deadletter/`
+#### **Reference:** `scan/deadletter/DeadLetterService.java`, `DeadLetterController.java`, `DeadLetter.java`, `DeadLetterPageConfig.java`, `messaging/DedicatedChannel.java`, `static/dead-letters.html`, `static/js/dead-letters.js`, tests in `scan/deadletter/`
 **Depends on:** CON-10
 
 ### CON-12: Publish lot events through a transactional outbox (5 pts)
 **Description:** Publish every committed lot change to the topic exchange `orthanc.lots` for other applications.
-**AC:**
+
+#### AC:
 - The `LotEventMessage` contract is versioned with `schemaVersion=1`. Its fields are `eventId`, `type`, `sequence`, `occurredAt`, `lotId`, `lot` (state after the event), `from`, `to`, `scan`, `discrepancy`, `rejectionReason` and `previousStatus`.
 - Routing keys:
   - `lot.moved`
@@ -616,21 +627,23 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
   "discrepancy": null, "rejectionReason": null, "previousStatus": "active"
 }
 ```
-**Reference:** `lot/application/events/` (`LotEventMessage`, `LotEventRecorder`, `OutboxEvent`, `OutboxEventRepository`, `OutboxRelay`, `LotEventsConfig`), tests `LotEventRecorderTest`, `OutboxRelayTest`
+#### **Reference:** `lot/application/events/` (`LotEventMessage`, `LotEventRecorder`, `OutboxEvent`, `OutboxEventRepository`, `OutboxRelay`, `LotEventsConfig`), tests `LotEventRecorderTest`, `OutboxRelayTest`
 **Depends on:** CON-6, CON-9
 
 ### CON-13: Oracle schema scripts and schema guard test (2 pts)
-**AC:**
+
+#### AC:
 - `db/oracle/create-schema.sql` creates every table and index above, and `drop-schema.sql` drops them.
 - `SchemaTest` checks that columns holding enum names are plain strings (no check constraints), so adding a value later needs no migration.
-**Reference:** `src/main/resources/db/oracle/*.sql`, `src/test/.../SchemaTest.java`
+#### **Reference:** `src/main/resources/db/oracle/*.sql`, `src/test/.../SchemaTest.java`
 **Depends on:** CON-12
 
 ### CON-14: Developer docs and API samples (1 pt)
-**AC:**
+
+#### AC:
 - The README is complete. It covers config files, local modes 2 and 3 (personal queue, routing key and DLQ names), the failed-scans runbook and lot events.
 - `api-requests/lot-api.http` and `lot-api-curl.txt` cover every endpoint.
-**Reference:** `README.md`, `api-requests/`
+#### **Reference:** `README.md`, `api-requests/`
 **Depends on:** all
 
 ---
