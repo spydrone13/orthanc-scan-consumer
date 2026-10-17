@@ -76,10 +76,10 @@ async function load() {
     els.tableWrap.hidden = false;
     render();
   } catch (err) {
-    els.status.className = 'status status--error';
+    els.status.className = 'status text-danger';
     els.status.replaceChildren(
       `Could not load lot stages: ${networkAware(err)}. `,
-      el('button', { type: 'button', class: 'btn', text: 'Retry', onclick: load }),
+      el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', text: 'Retry', onclick: load }),
     );
   }
 }
@@ -109,7 +109,7 @@ function render() {
 function stageCell(stage) {
   return el('td', { class: 'stage-name', 'data-label': 'Stage' }, [
     stage.description,
-    el('span', { class: 'stage-id', text: stage.id }),
+    el('span', { class: 'stage-id d-block font-monospace text-body-tertiary', text: stage.id }),
   ]);
 }
 
@@ -123,7 +123,7 @@ function viewRow(stage) {
           : '. No WIP locations allowed';
         return el('button', {
           type: 'button',
-          class: 'chip chip--stage',
+          class: 'btn btn-sm rounded-pill chip chip--stage',
           title: `Go to ${description(id)}${allowedNote}`,
           onclick: () => jumpTo(id),
         }, [
@@ -133,12 +133,12 @@ function viewRow(stage) {
             : []),
         ]);
       }))
-    : el('span', { class: 'final', text: 'Final stage' });
+    : el('span', { class: 'badge rounded-pill bg-success-subtle text-success fw-semibold chip', text: 'Final stage' });
 
   const wip = stage.wipLocations.length
     ? el('div', { class: 'chips' }, stage.wipLocations.map(loc =>
-        el('span', { class: 'chip chip--wip', text: loc.description, title: loc.id })))
-    : el('span', { class: 'empty', text: 'None' });
+        el('span', { class: 'badge rounded-pill border fw-normal text-body bg-body-tertiary chip chip--wip', text: loc.description, title: loc.id })))
+    : el('span', { class: 'small text-body-tertiary', text: 'None' });
 
   return el('tr', { id: `stage-${stage.id}` }, [
     stageCell(stage),
@@ -147,7 +147,7 @@ function viewRow(stage) {
     el('td', { class: 'actions' }, [
       ...(stage.nextStages.length || stage.wipLocations.length
         ? [el('a', {
-            class: 'btn',
+            class: 'btn btn-sm btn-outline-secondary',
             text: 'Barcodes',
             href: `/lot-stages/barcodes?stage=${encodeURIComponent(stage.id)}`,
             target: '_blank',
@@ -157,7 +157,7 @@ function viewRow(stage) {
         : []),
       el('button', {
         type: 'button',
-        class: 'btn',
+        class: 'btn btn-sm btn-outline-secondary',
         text: 'Edit',
         disabled: editingId !== null,
         'aria-label': `Edit ${stage.description}`,
@@ -173,7 +173,7 @@ function editRow(stage) {
   const nextWip = new Map(Object.entries(stage.nextWipLocations).map(([id, ids]) => [id, new Set(ids)]));
   const wip = stage.wipLocations.map(w => ({ ...w }));
 
-  const error = el('div', { class: 'row-error', role: 'alert' });
+  const error = el('div', { class: 'row-error small text-danger', role: 'alert' });
 
   // Each next stage's checkbox, and once checked, which of its WIP locations a lot may go to.
   const nextOption = s => {
@@ -193,6 +193,8 @@ function editRow(stage) {
         el('label', {}, [
           el('input', {
             type: 'checkbox',
+            class: 'form-check-input m-0',
+            class: 'form-check-input m-0',
             checked: !allowed,
             onchange: e => {
               if (e.target.checked) nextWip.delete(s.id);
@@ -208,6 +210,9 @@ function editRow(stage) {
               el('label', { class: 'next-wip-location', title: loc.id }, [
                 el('input', {
                   type: 'checkbox',
+                  class: 'form-check-input m-0',
+          class: 'form-check-input m-0',
+            class: 'form-check-input m-0',
                   checked: allowed.has(loc.id),
                   onchange: e => (e.target.checked ? allowed.add(loc.id) : allowed.delete(loc.id)),
                 }),
@@ -221,6 +226,7 @@ function editRow(stage) {
       el('label', {}, [
         el('input', {
           type: 'checkbox',
+          class: 'form-check-input m-0',
           checked: checked.has(s.id),
           onchange: e => {
             if (e.target.checked) checked.add(s.id);
@@ -244,9 +250,10 @@ function editRow(stage) {
   const renderWip = () => {
     wipList.replaceChildren(...wip.map((loc, i) =>
       el('div', { class: 'wip-line' }, [
-        el('span', { class: 'wip-line-id', text: loc.id }),
+        el('span', { class: 'wip-line-id font-monospace text-body-tertiary', text: loc.id }),
         el('input', {
           type: 'text',
+          class: 'form-control form-control-sm',
           value: loc.description,
           placeholder: defaultWipDescription(stage.description, loc.id),
           'aria-label': `Description for ${loc.id}`,
@@ -254,13 +261,12 @@ function editRow(stage) {
         }),
         el('button', {
           type: 'button',
-          class: 'chip-remove',
-          text: '×',
+          class: 'btn-close chip-remove',
           'aria-label': `Remove ${loc.id}`,
           onclick: () => { wip.splice(i, 1); renderWip(); wipIdInput.focus(); },
         }),
       ])));
-    if (wip.length === 0) wipList.append(el('span', { class: 'empty', text: 'None' }));
+    if (wip.length === 0) wipList.append(el('span', { class: 'small text-body-tertiary', text: 'None' }));
   };
 
   const onEnter = e => {
@@ -268,7 +274,7 @@ function editRow(stage) {
   };
   const wipIdInput = el('input', {
     type: 'text',
-    class: 'wip-add-id',
+    class: 'form-control form-control-sm font-monospace',
     placeholder: `e.g. ${stage.id.toUpperCase()}-004`,
     'aria-label': 'New WIP location ID',
     onkeydown: onEnter,
@@ -280,6 +286,7 @@ function editRow(stage) {
   });
   const wipDescriptionInput = el('input', {
     type: 'text',
+    class: 'form-control form-control-sm',
     placeholder: 'Description (optional)',
     'aria-label': 'New WIP location description',
     onkeydown: onEnter,
@@ -303,8 +310,8 @@ function editRow(stage) {
 
   renderWip();
 
-  const saveBtn = el('button', { type: 'button', class: 'btn btn--primary', text: 'Save' });
-  const cancelBtn = el('button', { type: 'button', class: 'btn', text: 'Cancel', onclick: cancelEdit });
+  const saveBtn = el('button', { type: 'button', class: 'btn btn-sm btn-primary', text: 'Save' });
+  const cancelBtn = el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', text: 'Cancel', onclick: cancelEdit });
 
   saveBtn.addEventListener('click', async () => {
     saveBtn.disabled = cancelBtn.disabled = true;
@@ -348,7 +355,7 @@ function editRow(stage) {
       el('div', { class: 'wip-add' }, [
         wipIdInput,
         wipDescriptionInput,
-        el('button', { type: 'button', class: 'btn', text: 'Add', onclick: addWip }),
+        el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', text: 'Add', onclick: addWip }),
       ]),
       error,
     ]),

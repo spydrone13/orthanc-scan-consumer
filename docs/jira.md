@@ -230,7 +230,7 @@ Spring Boot service (port 3001). It does five things:
 #### AC:
 - `/lot-stages` shows a table of each stage, its valid next stages and its WIP locations, and lets you edit them through the PUT API.
 - Each stage row on `/lot-stages` has a **Barcodes** button that opens that stage's barcode sheet (spec below).
-- Both pages share `css/lot-stages.css`. View controllers serve them at extensionless paths: `/lot-stages` → `lot-stages.html` and `/lot-stages/barcodes` → `lot-stage-barcodes.html`.
+- Both pages share `css/lot-stages.css`, which themes Bootstrap v5.3.8 (CSS only, vendored at `static/css/vendor/bootstrap.min.css`, no CDN) and loads after it. View controllers serve them at extensionless paths: `/lot-stages` → `lot-stages.html` and `/lot-stages/barcodes` → `lot-stage-barcodes.html`.
 
 **Barcode spec:**
 

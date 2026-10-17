@@ -35,7 +35,7 @@ function el(tag, props = {}, children = []) {
 }
 
 function setStatus(message, isError = false) {
-  els.status.className = isError ? 'status status--error' : 'status';
+  els.status.className = isError ? 'status text-danger' : 'status';
   els.status.replaceChildren(...(message ? [message] : []));
 }
 
@@ -74,10 +74,10 @@ function setBusy(value) {
 
 function row(deadLetter) {
   const scanCell = deadLetter.clientId
-    ? el('td', { class: 'stage-name', 'data-label': 'Scan' }, [el('span', { class: 'mono', text: deadLetter.clientId })])
+    ? el('td', { class: 'stage-name', 'data-label': 'Scan' }, [el('span', { class: 'font-monospace small text-break', text: deadLetter.clientId })])
     : el('td', { class: 'stage-name', 'data-label': 'Scan' }, [
         'Unreadable message',
-        el('span', { class: 'stage-id', text: deadLetter.id }),
+        el('span', { class: 'stage-id d-block font-monospace text-body-tertiary', text: deadLetter.id }),
       ]);
 
   const reason = el('td', { 'data-label': 'Reason' }, [
@@ -86,7 +86,7 @@ function row(deadLetter) {
     details('Message', deadLetter.body),
   ]);
 
-  const discardBtn = el('button', { type: 'button', class: 'btn btn--danger', text: 'Discard', disabled: busy });
+  const discardBtn = el('button', { type: 'button', class: 'btn btn-sm btn-outline-danger', text: 'Discard', disabled: busy });
   // Two clicks to discard: the first arms the button for a few seconds.
   let armed = null;
   discardBtn.addEventListener('click', () => {
@@ -103,12 +103,12 @@ function row(deadLetter) {
     scanCell,
     el('td', { 'data-label': 'Lot', text: deadLetter.lotId ?? '—' }),
     el('td', { 'data-label': 'User', text: deadLetter.userName ?? '—' }),
-    el('td', { 'data-label': 'Failed', class: 'nowrap', text: deadLetter.failedAt ? timeFormat.format(new Date(deadLetter.failedAt)) : '—' }),
+    el('td', { 'data-label': 'Failed', class: 'text-nowrap', text: deadLetter.failedAt ? timeFormat.format(new Date(deadLetter.failedAt)) : '—' }),
     reason,
     el('td', { class: 'actions' }, [
       el('button', {
         type: 'button',
-        class: 'btn',
+        class: 'btn btn-sm btn-outline-secondary',
         text: 'Retry',
         disabled: busy,
         onclick: () => act(`${API}/${encodeURIComponent(deadLetter.id)}/retry`, 'POST', `Retried ${label(deadLetter)}.`),

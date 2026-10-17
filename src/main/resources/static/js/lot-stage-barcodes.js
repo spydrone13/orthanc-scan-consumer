@@ -23,7 +23,7 @@ function el(tag, props = {}, children = []) {
 }
 
 function showError(message) {
-  els.status.className = 'status status--error';
+  els.status.className = 'status text-danger';
   els.status.textContent = message;
 }
 
@@ -56,7 +56,7 @@ function label(description, value) {
   try {
     code = barcode(value);
   } catch {
-    code = el('p', { class: 'status--error', text: `${value} can't be encoded as a barcode` });
+    code = el('p', { class: 'text-danger', text: `${value} can't be encoded as a barcode` });
   }
   return el('div', { class: 'barcode-label' }, [
     el('div', { class: 'barcode-label-title', text: description }),

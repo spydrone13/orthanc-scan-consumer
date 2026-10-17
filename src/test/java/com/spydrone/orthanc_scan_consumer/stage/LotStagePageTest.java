@@ -37,6 +37,9 @@ class LotStagePageTest {
 				.andExpect(content().string(containsString("id=\"rows\"")));
 		mvc.perform(get("/js/lot-stages.js")).andExpect(status().isOk());
 		mvc.perform(get("/css/lot-stages.css")).andExpect(status().isOk());
+		mvc.perform(get("/css/vendor/bootstrap.min.css"))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("v5.3.8")));
 	}
 
 	@Test
