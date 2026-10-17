@@ -45,15 +45,15 @@ your scans, so you don't run this app. The other two:
 
 ### Mode 2: test environment RabbitMQ, your own queue
 
-Create `application-secrets.properties` (above) and `application-local.properties`, using the **same** queue
-and routing key as in your producer's `application-local.properties`:
+Create `application-secrets.properties` (above) and `application-local.properties`, using the **same** queue,
+routing key, dead-letter queue and expiry as in your producer's `application-local.properties`:
 
 ```properties
 spring.rabbitmq.host=<test-rabbitmq-host>
 app.scans.queue=orthanc.scans.<your-name>
 app.scans.routing-key=scan.created.<your-name>
-app.scans.dead-letter-exchange=orthanc.scans.dlx.<your-name>
 app.scans.dead-letter-queue=orthanc.scans.dlq.<your-name>
+app.scans.queue-expires=7d
 ```
 
 Then run with the `local` profile.
@@ -62,8 +62,13 @@ Then run with the `local` profile.
   environment consumer and take some of its messages.
 - The routing key must differ from `scan.created`, not just the queue name. Otherwise your queue also receives
   copies of everyone's test scans.
-- Your RabbitMQ user needs configure, write and read permission on your queue and dead-letter queue and
-  exchange. They're durable, so delete them in the RabbitMQ management UI when you no longer need them.
+- Your dead-letter queue uses the shared dead-letter exchange `orthanc.scans.dlx`. Failed scans are routed by
+  dead-letter queue name, so you only get your own.
+- Your RabbitMQ user needs configure, write and read permission on your queue and dead-letter queue, and write
+  and read permission on `orthanc.scans` and `orthanc.scans.dlx`.
+- With `app.scans.queue-expires` set, RabbitMQ deletes your queues, with any messages in them, once they've
+  gone 7 days unused. To delete them sooner, or to clean up queues and the old per-developer dead-letter
+  exchange from before queues could expire, see "Removing your queues" in the producer's README.
 
 ### Mode 3: everything local
 

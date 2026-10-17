@@ -1,5 +1,7 @@
 package com.spydrone.orthanc_scan_consumer.scan;
 
+import java.time.Duration;
+
 import org.springframework.amqp.core.AmqpTemplate;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
@@ -31,13 +33,15 @@ public class RabbitConfig {
 
 	/**
 	 * RabbitMQ won't change an existing queue's arguments: a queue declared before the dead-letter
-	 * arguments existed must be deleted so it can be redeclared (see README).
+	 * arguments existed must be deleted so it can be redeclared (see README). The same goes for the expiry,
+	 * which must also match the producer's.
 	 */
 	@Bean
 	Queue scansQueue(@Value("${app.scans.queue}") String name,
 			@Value("${app.scans.dead-letter-exchange}") String deadLetterExchange,
-			@Value("${app.scans.dead-letter-queue}") String deadLetterQueue) {
-		return QueueBuilder.durable(name)
+			@Value("${app.scans.dead-letter-queue}") String deadLetterQueue,
+			@Value("${app.scans.queue-expires:#{null}}") Duration expires) {
+		return durable(name, expires)
 				.deadLetterExchange(deadLetterExchange)
 				.deadLetterRoutingKey(deadLetterQueue)
 				.build();
@@ -56,8 +60,9 @@ public class RabbitConfig {
 
 	/** Failed scans wait here, with RabbitMQ's x-death header saying why, to be inspected or replayed. */
 	@Bean
-	Queue scansDeadLetterQueue(@Value("${app.scans.dead-letter-queue}") String name) {
-		return QueueBuilder.durable(name).build();
+	Queue scansDeadLetterQueue(@Value("${app.scans.dead-letter-queue}") String name,
+			@Value("${app.scans.queue-expires:#{null}}") Duration expires) {
+		return durable(name, expires).build();
 	}
 
 	@Bean
@@ -76,5 +81,11 @@ public class RabbitConfig {
 	@Bean
 	MessageConverter jsonMessageConverter() {
 		return new JacksonJsonMessageConverter();
+	}
+
+	/** Developer queues (README, mode 2) set app.scans.queue-expires so RabbitMQ deletes them once unused. */
+	private static QueueBuilder durable(String name, Duration expires) {
+		QueueBuilder queue = QueueBuilder.durable(name);
+		return expires != null ? queue.expires(Math.toIntExact(expires.toMillis())) : queue;
 	}
 }
