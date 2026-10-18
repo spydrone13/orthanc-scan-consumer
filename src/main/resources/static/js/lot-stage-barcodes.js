@@ -1,5 +1,6 @@
 // Printable barcode sheet for one stage: /lot-stages/barcodes?stage=<id>.
-// Each barcode encodes the internal id (what the scan form submits); the label shows the
+// Each barcode encodes the internal id wrapped in '%' delimiters (%id%) so the scanner UI can
+// recognise a destination scan; the text under the bars shows the bare id and the label shows the
 // description. Barcodes are drawn by the vendored JsBarcode (global, loaded before this module).
 
 const API = '/api/lot-stages';
@@ -33,8 +34,9 @@ function showError(message) {
  */
 function barcode(value) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  JsBarcode(svg, value, {
+  JsBarcode(svg, `%${value}%`, {
     format: 'CODE128',
+    text: value,
     width: 1.5,
     height: 60,
     displayValue: true,
