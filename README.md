@@ -130,7 +130,9 @@ producer declares the same queue and must be updated at the same time.
 Open http://localhost:3001/production-weeks. Pick a year with the ‹ › buttons or by typing it; the year is kept
 in the URL (`?year=2026`), so links can be shared. A year with no weeks yet shows **Create weeks for …**, which
 adds all of its weeks, open. Each week runs Saturday to Friday and is listed by the Friday it ends on. **Close**
-and **Reopen** change one week's state.
+and **Reopen** change one week's state. **Capacity** edits the week's capacity in wafers: any number of lines, each
+for a chip type, a process type, both, or neither (the week's total). Each combination can appear once. Capacity
+is only recorded for now; nothing checks lots against it yet.
 
 The same is available as an API under `/api/production-weeks` (see `api-requests/production-weeks.http`).
 

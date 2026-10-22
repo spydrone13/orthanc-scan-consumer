@@ -1,5 +1,6 @@
 package com.spydrone.orthanc_scan_consumer.week;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -19,6 +20,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 
 /** Pins the production-week API's paths and JSON shapes. */
 @WebMvcTest(ProductionWeekController.class)
@@ -81,6 +85,49 @@ class ProductionWeekControllerTest {
 						.content("{\"status\":\"closed\"}"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.status").value("closed"));
+	}
+
+	@Test
+	void setsCapacities() throws Exception {
+		List<CapacityEntry> capacities = List.of(new CapacityEntry(null, null, 1200),
+				new CapacityEntry(ChipType.Z_SERIES, ProcessType.A, 100));
+		given(service.setCapacities(2026, 1, capacities)).willReturn(new ProductionWeekView(2026, 1,
+				LocalDate.of(2025, 12, 27), LocalDate.of(2026, 1, 2), WeekStatus.OPEN, capacities));
+
+		mvc.perform(put("/api/production-weeks/2026/1/capacities").contentType(MediaType.APPLICATION_JSON)
+						.content("[{\"waferCount\":1200},"
+								+ "{\"chipType\":\"Z_SERIES\",\"processType\":\"A\",\"waferCount\":100}]"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.capacities[0].chipType").value(nullValue()))
+				.andExpect(jsonPath("$.capacities[0].processType").value(nullValue()))
+				.andExpect(jsonPath("$.capacities[0].waferCount").value(1200))
+				.andExpect(jsonPath("$.capacities[1].chipType").value("Z_SERIES"))
+				.andExpect(jsonPath("$.capacities[1].processType").value("A"));
+	}
+
+	@Test
+	void listedWeeksCarryCapacities() throws Exception {
+		given(service.list(2026)).willReturn(List.of(new ProductionWeekView(2026, 1, LocalDate.of(2025, 12, 27),
+				LocalDate.of(2026, 1, 2), WeekStatus.OPEN, List.of(new CapacityEntry(null, ProcessType.B, 300)))));
+
+		mvc.perform(get("/api/production-weeks").param("year", "2026"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].capacities[0].processType").value("B"))
+				.andExpect(jsonPath("$[0].capacities[0].waferCount").value(300));
+	}
+
+	@Test
+	void invalidCapacitiesAreBadRequests() throws Exception {
+		mvc.perform(put("/api/production-weeks/2026/1/capacities").contentType(MediaType.APPLICATION_JSON)
+						.content("[{\"chipType\":\"A_SERIES\",\"waferCount\":1}]"))
+				.andExpect(status().isBadRequest());
+		mvc.perform(put("/api/production-weeks/2026/1/capacities").contentType(MediaType.APPLICATION_JSON)
+						.content("[null]"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detail").value("Capacity entries can't be null"));
+		mvc.perform(put("/api/production-weeks/2026/1/capacities").contentType(MediaType.APPLICATION_JSON))
+				.andExpect(status().isBadRequest());
+		verifyNoInteractions(service);
 	}
 
 	@Test

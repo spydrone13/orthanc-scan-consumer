@@ -48,9 +48,10 @@ class SchemaTest {
 				"select data_type from information_schema.columns where table_schema = 'PUBLIC'"
 						+ " and (table_name, column_name) in (('LOT_STAGE_EVENTS', 'SCAN_TYPE'),"
 						+ " ('LOT_STAGE_EVENTS', 'EXCEPTION'), ('SCANS', 'SCAN_TYPE'), ('LOTS', 'STATUS'),"
-						+ " ('LOTS', 'CHIP_TYPE'), ('LOTS', 'PROCESS_TYPE'), ('PRODUCTION_WEEKS', 'STATUS'))",
+						+ " ('LOTS', 'CHIP_TYPE'), ('LOTS', 'PROCESS_TYPE'), ('PRODUCTION_WEEKS', 'STATUS'),"
+						+ " ('PRODUCTION_WEEK_CAPACITIES', 'CHIP_TYPE'), ('PRODUCTION_WEEK_CAPACITIES', 'PROCESS_TYPE'))",
 				String.class);
 
-		assertThat(types).hasSize(7).containsOnly("CHARACTER VARYING");
+		assertThat(types).hasSize(9).containsOnly("CHARACTER VARYING");
 	}
 }

@@ -1,10 +1,13 @@
 // Production-weeks page. Reads GET /api/production-weeks?year=; creates a year's weeks with
-// POST /api/production-weeks/years/{year} and opens or closes one with
-// PUT /api/production-weeks/{year}/{week}/status. The selected year is kept in the URL (?year=).
+// POST /api/production-weeks/years/{year}, opens or closes one with PUT …/{year}/{week}/status and sets its
+// capacity with PUT …/{year}/{week}/capacities. The selected year is kept in the URL (?year=).
 
 const API = '/api/production-weeks';
 const MIN_YEAR = 2000;
 const MAX_YEAR = 2100;
+// The lot domain's ChipType and ProcessType enums.
+const CHIP_TYPES = ['Z_SERIES', 'H_SERIES', 'Q_SERIES', 'X_SERIES'];
+const PROCESS_TYPES = ['A', 'B', 'C'];
 
 const els = {
   year: document.getElementById('year'),
@@ -21,12 +24,15 @@ const els = {
 
 /** The year shown; weeks is null until it has loaded. */
 let year = initialYear();
-/** [{ year, weekNumber, startDate, endDate, status: 'open' | 'closed' }] */
+/** [{ year, weekNumber, startDate, endDate, status: 'open' | 'closed', capacities: [{ chipType, processType, waferCount }] }] */
 let weeks = null;
-/** True while a request is running; all buttons and the year input are disabled meanwhile. */
+/** True while a request is running. */
 let busy = false;
+/** The week number whose capacity is being edited, or null. */
+let editingWeek = null;
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+const numberFormat = new Intl.NumberFormat();
 
 function el(tag, props = {}, children = []) {
   const node = document.createElement(tag);
@@ -57,6 +63,7 @@ function setStatus(message, isError = false) {
 
 async function load(newYear) {
   year = newYear;
+  editingWeek = null;
   els.year.value = year;
   history.replaceState(null, '', `?year=${year}`);
   weeks = null;
@@ -103,15 +110,18 @@ async function toggle(week) {
       body: JSON.stringify({ status }),
     });
     if (!res.ok) throw new Error(await errorMessage(res));
-    const updated = await res.json();
-    weeks = weeks.map(w => (w.weekNumber === updated.weekNumber ? updated : w));
-    setStatus(`Week ${updated.weekNumber} ${updated.status === 'open' ? 'reopened' : 'closed'}.`);
+    replaceWeek(await res.json());
+    setStatus(`Week ${week.weekNumber} ${status === 'open' ? 'reopened' : 'closed'}.`);
     render();
   } catch (err) {
     setStatus(`Could not update week ${week.weekNumber}: ${networkAware(err)}.`, true);
   } finally {
     setBusy(false);
   }
+}
+
+function replaceWeek(updated) {
+  weeks = weeks.map(w => (w.weekNumber === updated.weekNumber ? updated : w));
 }
 
 function render() {
@@ -127,41 +137,216 @@ function render() {
   } else {
     els.count.textContent = '';
   }
-  els.rows.replaceChildren(...(hasWeeks ? weeks.map(row) : []));
+  els.rows.replaceChildren(...(hasWeeks ? weeks.map(w => (w.weekNumber === editingWeek ? editRow(w) : viewRow(w))) : []));
+  setBusy(busy);
 }
 
+/** Disables everything that would start another request or lose an open edit. */
 function setBusy(value) {
   busy = value;
-  els.year.disabled = value;
-  els.prevYear.disabled = value || year <= MIN_YEAR;
-  els.nextYear.disabled = value || year >= MAX_YEAR;
-  els.seed.disabled = value;
-  for (const button of els.rows.querySelectorAll('button')) button.disabled = value;
+  const locked = value || editingWeek !== null;
+  els.year.disabled = locked;
+  els.prevYear.disabled = locked || year <= MIN_YEAR;
+  els.nextYear.disabled = locked || year >= MAX_YEAR;
+  els.seed.disabled = locked;
+  for (const button of els.rows.querySelectorAll('button[data-row-action]')) button.disabled = locked;
 }
 
-function row(week) {
+function weekCell(week) {
+  return el('td', { class: 'stage-name', 'data-label': 'Week' }, [
+    String(week.weekNumber),
+    ...(containsToday(week) ? [el('span', { class: 'this-week', text: 'This week' })] : []),
+  ]);
+}
+
+function viewRow(week) {
   const open = week.status === 'open';
-  const current = containsToday(week);
-  return el('tr', { class: open ? '' : 'week-closed' }, [
-    el('td', { class: 'stage-name', 'data-label': 'Week' }, [
-      String(week.weekNumber),
-      ...(current ? [el('span', { class: 'this-week', text: 'This week' })] : []),
-    ]),
+  return el('tr', { id: `week-${week.weekNumber}`, class: open ? '' : 'week-closed' }, [
+    weekCell(week),
     el('td', { 'data-label': 'Week ending', class: 'text-nowrap', text: dateFormat.format(localDate(week.endDate)) }),
     el('td', { 'data-label': 'Status' }, [
       el('span', { class: open ? 'week-badge badge-open' : 'week-badge badge-closed', text: open ? 'Open' : 'Closed' }),
     ]),
+    el('td', { 'data-label': 'Capacity' }, [capacityList(week.capacities)]),
     el('td', { class: 'actions' }, [
       el('button', {
         type: 'button',
         class: 'btn btn-sm btn-outline-secondary',
+        text: 'Capacity',
+        'data-row-action': '',
+        'aria-label': `Edit capacity for week ${week.weekNumber}`,
+        onclick: () => startEdit(week.weekNumber),
+      }),
+      el('button', {
+        type: 'button',
+        class: 'btn btn-sm btn-outline-secondary',
         text: open ? 'Close' : 'Reopen',
-        disabled: busy,
+        'data-row-action': '',
         'aria-label': `${open ? 'Close' : 'Reopen'} week ${week.weekNumber}`,
         onclick: () => toggle(week),
       }),
     ]),
   ]);
+}
+
+function capacityList(capacities) {
+  if (capacities.length === 0) return el('span', { class: 'text-body-tertiary', text: '—' });
+  return el('ul', { class: 'capacity-list' }, capacities.map(c =>
+    el('li', {}, [
+      el('span', { class: 'capacity-label', text: capacityLabel(c) }),
+      el('span', { class: 'capacity-count', text: numberFormat.format(c.waferCount) }),
+    ])));
+}
+
+/** "All", "Z_SERIES", "Process B" or "Z_SERIES / A". */
+function capacityLabel({ chipType, processType }) {
+  if (chipType && processType) return `${chipType} / ${processType}`;
+  if (chipType) return chipType;
+  if (processType) return `Process ${processType}`;
+  return 'All';
+}
+
+/** The week's row as a capacity editor: one line per rule, each a chip type, a process type and a wafer count. */
+function editRow(week) {
+  // Selects use '' for "any"; counts are kept as typed until saved.
+  const lines = week.capacities.map(c => ({
+    chipType: c.chipType ?? '',
+    processType: c.processType ?? '',
+    waferCount: String(c.waferCount),
+  }));
+  const error = el('div', { class: 'row-error small text-danger', role: 'alert' });
+  const list = el('div', { class: 'capacity-editor' });
+
+  const select = (value, anyLabel, options, label, onchange) =>
+    el('select', { class: 'form-select form-select-sm', 'aria-label': label, onchange: e => onchange(e.target.value) }, [
+      el('option', { value: '', text: anyLabel, selected: value === '' }),
+      ...options.map(o => el('option', { value: o, text: o, selected: value === o })),
+    ]);
+
+  const renderLines = () => {
+    list.replaceChildren(...lines.map((line, i) =>
+      el('div', { class: 'capacity-line' }, [
+        select(line.chipType, 'Any chip', CHIP_TYPES, `Chip type for line ${i + 1}`, v => { line.chipType = v; }),
+        select(line.processType, 'Any process', PROCESS_TYPES, `Process type for line ${i + 1}`,
+          v => { line.processType = v; }),
+        el('input', {
+          type: 'number',
+          class: 'form-control form-control-sm',
+          min: '0',
+          step: '1',
+          inputMode: 'numeric',
+          placeholder: 'Wafers',
+          value: line.waferCount,
+          'aria-label': `Wafer count for line ${i + 1}`,
+          oninput: e => { line.waferCount = e.target.value; },
+        }),
+        el('button', {
+          type: 'button',
+          class: 'btn-close chip-remove',
+          'aria-label': `Remove line ${i + 1}`,
+          onclick: () => { lines.splice(i, 1); renderLines(); },
+        }),
+      ])));
+    if (lines.length === 0) list.append(el('span', { class: 'small text-body-tertiary', text: 'No capacity set.' }));
+  };
+  renderLines();
+
+  const addBtn = el('button', {
+    type: 'button',
+    class: 'btn btn-sm btn-outline-secondary capacity-add',
+    text: 'Add capacity',
+    onclick: () => {
+      lines.push({ chipType: '', processType: '', waferCount: '' });
+      renderLines();
+      list.querySelector('.capacity-line:last-child select')?.focus();
+    },
+  });
+
+  /** Flags bad counts and repeated combinations in place; returns the entries to send, or null. */
+  function validate() {
+    const lineEls = [...list.querySelectorAll('.capacity-line')];
+    lineEls.forEach(l => l.querySelectorAll('.is-invalid').forEach(f => f.classList.remove('is-invalid')));
+    const problems = [];
+    const seen = new Map();
+    lines.forEach((line, i) => {
+      const count = Number(line.waferCount);
+      if (line.waferCount.trim() === '' || !Number.isInteger(count) || count < 0) {
+        lineEls[i].querySelector('input').classList.add('is-invalid');
+        problems.push('Each line needs a wafer count of 0 or more.');
+      }
+      const key = `${line.chipType}|${line.processType}`;
+      if (seen.has(key)) {
+        for (const j of [seen.get(key), i]) lineEls[j].querySelectorAll('select').forEach(s => s.classList.add('is-invalid'));
+        problems.push(`${capacityLabel({ chipType: line.chipType, processType: line.processType })} is listed twice.`);
+      } else {
+        seen.set(key, i);
+      }
+    });
+    if (problems.length > 0) {
+      error.textContent = [...new Set(problems)].join(' ');
+      return null;
+    }
+    return lines.map(line => ({
+      chipType: line.chipType || null,
+      processType: line.processType || null,
+      waferCount: Number(line.waferCount),
+    }));
+  }
+
+  const saveBtn = el('button', { type: 'button', class: 'btn btn-sm btn-primary', text: 'Save' });
+  const cancelBtn = el('button', { type: 'button', class: 'btn btn-sm btn-outline-secondary', text: 'Cancel', onclick: cancelEdit });
+
+  saveBtn.addEventListener('click', async () => {
+    error.textContent = '';
+    const capacities = validate();
+    if (!capacities) return;
+    saveBtn.disabled = cancelBtn.disabled = addBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+    busy = true;
+    try {
+      const res = await fetch(`${API}/${week.year}/${week.weekNumber}/capacities`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(capacities),
+      });
+      if (!res.ok) throw new Error(await errorMessage(res));
+      replaceWeek(await res.json());
+      editingWeek = null;
+      busy = false;
+      setStatus(`Week ${week.weekNumber} capacity saved.`);
+      render();
+      document.querySelector(`#week-${week.weekNumber} .actions button`)?.focus();
+    } catch (err) {
+      busy = false;
+      error.textContent = `Could not save: ${networkAware(err)}`;
+      saveBtn.disabled = cancelBtn.disabled = addBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+    }
+  });
+
+  return el('tr', { id: `week-${week.weekNumber}`, class: 'row--editing' }, [
+    weekCell(week),
+    el('td', { colSpan: 3, 'data-label': `Capacity for the week ending ${dateFormat.format(localDate(week.endDate))}` }, [
+      list,
+      addBtn,
+      error,
+    ]),
+    el('td', { class: 'actions' }, [saveBtn, cancelBtn]),
+  ]);
+}
+
+function startEdit(weekNumber) {
+  editingWeek = weekNumber;
+  render();
+  const row = document.getElementById(`week-${weekNumber}`);
+  (row.querySelector('select') ?? row.querySelector('.capacity-add'))?.focus();
+}
+
+function cancelEdit() {
+  const weekNumber = editingWeek;
+  editingWeek = null;
+  render();
+  document.querySelector(`#week-${weekNumber} .actions button`)?.focus();
 }
 
 /** Dates come as YYYY-MM-DD; parsed as local dates so they don't shift with the time zone. */
@@ -202,5 +387,8 @@ els.year.addEventListener('change', () => {
   }
 });
 els.seed.addEventListener('click', seed);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && editingWeek !== null && !busy) cancelEdit();
+});
 
 load(year);

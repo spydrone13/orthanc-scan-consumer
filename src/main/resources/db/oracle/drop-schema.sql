@@ -1,6 +1,7 @@
 -- Drops everything create-schema.sql creates, child tables before the lot_stages table they reference.
 -- Indexes and constraints go with their tables.
 
+DROP TABLE production_week_capacities PURGE;
 DROP TABLE production_weeks PURGE;
 DROP TABLE lot_outbox_events PURGE;
 DROP TABLE lot_stage_events PURGE;

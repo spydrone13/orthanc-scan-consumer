@@ -721,8 +721,32 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
 #### **Reference:** `static/production-weeks.html`, `static/js/production-weeks.js`, `static/css/lot-stages.css`, `week/ProductionWeekPageConfig.java`, test `ProductionWeekPageTest`
 **Depends on:** CON-16
 
+### CON-18: Production week capacity by chip type and/or process type (3 pts)
+**Description:** Planners set how many wafers each production week can take, overall and split by chip type, process type or both.
+
+#### AC:
+- A week has a list of capacity rules `{ chipType | null, processType | null, waferCount }`. A null type means any, so both null is the week's total. Each combination appears at most once.
+- `waferCount` is required and ≥ 0. Rules aren't checked against each other (e.g. per-chip capacity may exceed the total).
+- Rules are stored in `production_week_capacities`, with types as plain strings (checked by `SchemaTest`). They're returned on every `ProductionWeekView`, sorted total first, then by chip type, by process type, then both.
+- Closed weeks can still be given capacity. Creating a year again leaves existing capacity alone.
+- The production-weeks page shows the rules in a Capacity column, and a **Capacity** button edits them inline. Missing or negative counts and repeated combinations are flagged before saving.
+- Capacity is recorded only: nothing checks lots against it yet, as lots aren't assigned to weeks.
+
+**API:**
+
+**`PUT /api/production-weeks/{year}/{week}/capacities`**: replaces the week's rules; `[]` clears them.
+- Request:
+  ```json
+  [ { "waferCount": 1200 }, { "chipType": "Z_SERIES", "waferCount": 500 }, { "chipType": "Z_SERIES", "processType": "A", "waferCount": 100 } ]
+  ```
+- 200: the `ProductionWeekView` (CON-16), now with `capacities`.
+- 400: `"waferCount is required"`, `"waferCount can't be negative"`, `"Duplicate capacity for Z_SERIES / any process"`, `"Capacity entries can't be null"`, or an unknown chip or process type.
+- 404: unknown week.
+#### **Reference:** `week/WeekCapacity.java`, `CapacityEntry.java`, `ProductionWeekService.setCapacities`, `static/js/production-weeks.js`, tests `ProductionWeekServiceTest`, `ProductionWeekControllerTest`
+**Depends on:** CON-17
+
 ---
 
 ## Build order / parallelism
-CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16 → CON-17. Total: about 47 points.
+CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16 → CON-17 → CON-18. Total: about 50 points.
 

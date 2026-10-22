@@ -2,7 +2,8 @@
 -- spring.jpa.hibernate.ddl-auto=validate (or none). Kept under db/oracle/ so Spring Boot doesn't run it
 -- automatically as schema.sql.
 --
--- Enum-backed columns (scan_type, status, exception, chip_type, process_type, production_weeks.status) are plain VARCHAR2 with no CHECK listing allowed
+-- Enum-backed columns (scan_type, status, exception, chip_type, process_type, production_weeks.status,
+-- production_week_capacities.chip_type and process_type) are plain VARCHAR2 with no CHECK listing allowed
 -- values, so values added to the enums later are accepted (see SchemaTest).
 --
 -- EXCEPTION is a PL/SQL keyword: it's a legal column name in plain SQL, but quote it ("EXCEPTION") when
@@ -146,4 +147,15 @@ CREATE TABLE production_weeks (
     status      VARCHAR2(255 CHAR) DEFAULT 'OPEN' NOT NULL,
     CONSTRAINT pk_production_weeks PRIMARY KEY (end_date),
     CONSTRAINT uk_production_weeks_year_week UNIQUE (prod_year, week_number)
+);
+
+-- A week's capacity in wafers, per chip type and/or process type (null = any; both null = the week's total).
+CREATE TABLE production_week_capacities (
+    week_end_date DATE               NOT NULL,
+    idx           NUMBER(10)         NOT NULL CHECK (idx >= 0),
+    chip_type     VARCHAR2(255 CHAR),
+    process_type  VARCHAR2(255 CHAR),
+    wafer_count   NUMBER(10)         NOT NULL,
+    CONSTRAINT pk_pw_capacities PRIMARY KEY (week_end_date, idx),
+    CONSTRAINT fk_pw_capacities FOREIGN KEY (week_end_date) REFERENCES production_weeks (end_date)
 );

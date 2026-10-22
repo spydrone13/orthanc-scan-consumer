@@ -47,4 +47,14 @@ public class ProductionWeekController {
 		}
 		return service.changeStatus(year, week, update.status());
 	}
+
+	/** Replaces the week's capacity rules; an empty array clears them. */
+	@PutMapping("/{year}/{week}/capacities")
+	public ProductionWeekView updateCapacities(@PathVariable int year, @PathVariable int week,
+			@RequestBody List<CapacityEntry> capacities) {
+		if (capacities.contains(null)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Capacity entries can't be null");
+		}
+		return service.setCapacities(year, week, capacities);
+	}
 }

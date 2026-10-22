@@ -35,7 +35,8 @@ class ProductionWeekPageTest {
 		mvc.perform(get("/production-weeks.html"))
 				.andExpect(status().isOk())
 				.andExpect(content().string(containsString("id=\"rows\"")))
-				.andExpect(content().string(containsString("id=\"seed\"")));
+				.andExpect(content().string(containsString("id=\"seed\"")))
+				.andExpect(content().string(containsString("col-capacity")));
 		mvc.perform(get("/js/production-weeks.js")).andExpect(status().isOk());
 		mvc.perform(get("/css/lot-stages.css"))
 				.andExpect(status().isOk())
