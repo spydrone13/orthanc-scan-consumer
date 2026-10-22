@@ -326,6 +326,7 @@ Spring Boot service (port 3001). It does five things:
 | `wipLocation` | string \| null | WIP location within that stage |
 | `status` | enum | `active`, `canceled`, `destroyed`, `complete` |
 | `onHold` | boolean | A held lot can't be scanned out of its stage |
+| `contractShipDate` / `waferCount` / `chipType` / `processType` | date / int / enum / enum, each \| null | The lot's details (CON-15) |
 | `updatedAt` | instant | Last change |
 | `lastScan` | object \| null | `{ clientId, userName, at }` of the scan that put the lot where it is |
 
@@ -553,6 +554,7 @@ A correction row has `clientId` set to the scan's id plus `#correction`, `note` 
   - `lot.scan-rejected`
   - `lot.status-changed`
   - `lot.hold-changed`
+  - `lot.details-changed` (added by CON-15)
 - `LotEventRecorder` writes rows to `lot_outbox_events` in the same transaction as the lot change. The row id is increasing and becomes `sequence`.
 - `OutboxRelay` runs `@Scheduled` every `relay-interval`. It publishes unpublished rows in id order, in batches of `batch-size`, with publisher confirms (`confirm-timeout`), and sets `publishedAt`.
 - If the broker is down, events wait and keep their order, and the outage is logged once.
@@ -583,7 +585,7 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
 | `sequence` | long | all | Increasing across all events; set when the event is published |
 | `occurredAt` | instant | all | When the change happened |
 | `lotId` | string | all | Lot id |
-| `lot` | object | all | State after the event: `{ currentStage, wipLocation, status, onHold }` |
+| `lot` | object | all | State after the event: `{ currentStage, wipLocation, status, onHold, contractShipDate, waferCount, chipType, processType }` |
 | `from` | object \| null | moved, scanned, location-corrected | `{ stage, wipLocation }` before |
 | `to` | object \| null | moved, scanned, location-corrected, scan-rejected | `{ stage, wipLocation }` after (for rejected, where the lot stayed) |
 | `scan` | object \| null | scan events | `{ clientId, userName, scanStage, note }` |
@@ -646,8 +648,38 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
 #### **Reference:** `README.md`, `api-requests/`
 **Depends on:** all
 
+### CON-15: Lot details: contract ship date, wafer count, chip type, process type (3 pts)
+**Description:** Store what a lot is, as well as where it is. A lot can be registered with its details before its first scan.
+
+#### AC:
+- `PUT /api/lots/{lotId}/details` replaces all four details. A field that is left out or null is cleared. If the lot doesn't exist, it's created active, not on hold and with no location. Its first scan then places it at the scan's stage.
+- Details can be changed whatever the lot's status or hold.
+- `LotDetailsChanged` is raised only when something actually changes. It's published as `lot.details-changed` and isn't written to the scan history.
+- `LotView` and the event's `lot` state carry `contractShipDate`, `waferCount`, `chipType` and `processType`. This is additive, so `schemaVersion` stays 1.
+- `chip_type` and `process_type` are plain strings, as checked by `SchemaTest`.
+
+**API:**
+
+**`PUT /api/lots/{lotId}/details`**
+- Request:
+  ```json
+  { "contractShipDate": "2026-12-15", "waferCount": 25, "chipType": "Z_SERIES", "processType": "B" }
+  ```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `contractShipDate` | ISO date \| null | Date the lot is contracted to ship |
+| `waferCount` | int ≥ 0 \| null | Wafers in the lot |
+| `chipType` | enum \| null | `Z_SERIES`, `H_SERIES`, `Q_SERIES`, `X_SERIES` |
+| `processType` | enum \| null | `A`, `B`, `C` |
+
+- 200: the `LotView` (CON-8), with `lastScan: null`.
+- 400: `"waferCount can't be negative"`. An unknown chip or process type, or a date that isn't ISO, is also a 400, rejected when the body is read.
+#### **Reference:** `lot/domain/LotDetails.java`, `ChipType.java`, `ProcessType.java`, `LotDetailsChanged.java`, `lot/api/LotDetailsUpdate.java`, `lot/application/command/SetLotDetails.java`
+**Depends on:** CON-9, CON-12
+
 ---
 
 ## Build order / parallelism
-CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14. Total: about 39 points.
+CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15. Total: about 42 points.
 

@@ -3,6 +3,7 @@ package com.spydrone.orthanc_scan_consumer.lot.application.events;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -16,11 +17,15 @@ import org.springframework.data.domain.Sort;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
 import com.spydrone.orthanc_scan_consumer.lot.application.events.LotEventMessage.LotState;
 import com.spydrone.orthanc_scan_consumer.lot.application.events.LotEventMessage.Place;
 import com.spydrone.orthanc_scan_consumer.lot.application.events.LotEventMessage.ScanInfo;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
+import com.spydrone.orthanc_scan_consumer.lot.domain.LotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 import com.spydrone.orthanc_scan_consumer.stage.LotStageRoutes;
@@ -59,7 +64,7 @@ class LotEventRecorderTest {
 		assertThat(message.schemaVersion()).isEqualTo(1);
 		assertThat(message.sequence()).isNull();
 		assertThat(message.occurredAt()).isEqualTo(NOW);
-		assertThat(message.lot()).isEqualTo(new LotState("wafer-prep", "WAFER-PREP-001", LotStatus.ACTIVE, false));
+		assertThat(message.lot()).isEqualTo(undetailed("wafer-prep", "WAFER-PREP-001", LotStatus.ACTIVE, false));
 		assertThat(message.from()).isEqualTo(new Place(null, null));
 		assertThat(message.to()).isEqualTo(new Place("wafer-prep", "WAFER-PREP-001"));
 		assertThat(message.scan()).isEqualTo(new ScanInfo("c1", "u", "intake", "n"));
@@ -103,7 +108,7 @@ class LotEventRecorderTest {
 		assertThat(rejected.rejectionReason()).isEqualTo("LOT_ON_HOLD");
 		assertThat(rejected.from()).isNull();
 		assertThat(rejected.to()).isEqualTo(new Place("intake", "INTAKE-001"));
-		assertThat(rejected.lot()).isEqualTo(new LotState("intake", "INTAKE-001", LotStatus.ACTIVE, true));
+		assertThat(rejected.lot()).isEqualTo(undetailed("intake", "INTAKE-001", LotStatus.ACTIVE, true));
 	}
 
 	@Test
@@ -121,9 +126,28 @@ class LotEventRecorderTest {
 		assertThat(status.previousStatus()).isEqualTo(LotStatus.ACTIVE);
 		// Spelled as in the lot API, so subscribers that load GET /api/lots see the same values.
 		assertThat(rows().get(1).getPayload()).contains("\"status\":\"complete\"").contains("\"previousStatus\":\"active\"");
-		assertThat(status.lot()).isEqualTo(new LotState("intake", "INTAKE-001", LotStatus.COMPLETE, false));
+		assertThat(status.lot()).isEqualTo(undetailed("intake", "INTAKE-001", LotStatus.COMPLETE, false));
 		assertThat(status.scan()).isNull();
 		assertThat(message(rows().get(2)).lot().onHold()).isTrue();
+	}
+
+	@Test
+	void detailsChangeIsRecordedOnlyWhenSomethingChangesAndCarriedInLaterEvents() {
+		LotDetails details = new LotDetails(LocalDate.of(2026, 12, 15), 25, ChipType.Z_SERIES, ProcessType.B);
+
+		handler.handle(new SetLotDetails("L1", details, NOW.minusSeconds(60)));
+		handler.handle(new SetLotDetails("L1", details, NOW.minusSeconds(30)));
+		handler.handle(ApplyScan.from(scan("c1", "intake", "intake", "INTAKE-001"), NOW));
+
+		assertThat(types()).containsExactly(LotEventMessage.DETAILS_CHANGED, LotEventMessage.MOVED);
+		LotEventMessage changed = message(rows().get(0));
+		assertThat(changed.lot()).isEqualTo(new LotState(null, null, LotStatus.ACTIVE, false,
+				LocalDate.of(2026, 12, 15), 25, ChipType.Z_SERIES, ProcessType.B));
+		assertThat(changed.scan()).isNull();
+		assertThat(rows().get(0).getPayload()).contains("\"contractShipDate\":\"2026-12-15\"")
+				.contains("\"chipType\":\"Z_SERIES\"").contains("\"processType\":\"B\"");
+		assertThat(message(rows().get(1)).lot()).isEqualTo(new LotState("intake", "INTAKE-001", LotStatus.ACTIVE,
+				false, LocalDate.of(2026, 12, 15), 25, ChipType.Z_SERIES, ProcessType.B));
 	}
 
 	/** In the order they were recorded. */
@@ -137,6 +161,11 @@ class LotEventRecorderTest {
 
 	private LotEventMessage message(OutboxEvent row) {
 		return json.readValue(row.getPayload(), LotEventMessage.class);
+	}
+
+	/** A lot's state when it has no details. */
+	private static LotState undetailed(String stage, String wipLocation, LotStatus status, boolean onHold) {
+		return new LotState(stage, wipLocation, status, onHold, null, null, null, null);
 	}
 
 	private static OutboxEvent only(List<OutboxEvent> rows) {

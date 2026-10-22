@@ -139,7 +139,8 @@ class OutboxRelayTest {
 
 	private static OutboxEvent event(long id, String eventId, String type) {
 		LotEventMessage message = new LotEventMessage(eventId, type, 1, null, AT, "L1",
-				new LotEventMessage.LotState("intake", null, LotStatus.ACTIVE, false), null, null, null, null, null, null);
+				new LotEventMessage.LotState("intake", null, LotStatus.ACTIVE, false, null, null, null, null), null, null,
+				null, null, null, null);
 		OutboxEvent event = new OutboxEvent(eventId, "L1", type, JSON.writeValueAsString(message), AT);
 		ReflectionTestUtils.setField(event, "id", id);
 		return event;

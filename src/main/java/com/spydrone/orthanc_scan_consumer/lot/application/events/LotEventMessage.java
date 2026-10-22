@@ -1,8 +1,11 @@
 package com.spydrone.orthanc_scan_consumer.lot.application.events;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
+import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 
 /**
  * What other applications receive on the {@code orthanc.lots} exchange, as JSON. The routing key is
@@ -48,9 +51,16 @@ public record LotEventMessage(
 	public static final String STATUS_CHANGED = "lot.status-changed";
 	/** Placed on hold or released; see {@code lot.onHold}. */
 	public static final String HOLD_CHANGED = "lot.hold-changed";
+	/** Contract ship date, wafer count, chip type or process type changed; see {@code lot}. */
+	public static final String DETAILS_CHANGED = "lot.details-changed";
 
-	/** @param status written as in the lot API: "active", "complete", ... */
-	public record LotState(String currentStage, String wipLocation, LotStatus status, boolean onHold) {
+	/**
+	 * contractShipDate, waferCount, chipType and processType are null when not given.
+	 *
+	 * @param status written as in the lot API: "active", "complete", ...
+	 */
+	public record LotState(String currentStage, String wipLocation, LotStatus status, boolean onHold,
+			LocalDate contractShipDate, Integer waferCount, ChipType chipType, ProcessType processType) {
 	}
 
 	public record Place(String stage, String wipLocation) {

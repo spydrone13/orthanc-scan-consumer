@@ -12,6 +12,8 @@ import com.spydrone.orthanc_scan_consumer.lot.application.events.LotEventMessage
 import com.spydrone.orthanc_scan_consumer.lot.domain.Location;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LocationCorrected;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
+import com.spydrone.orthanc_scan_consumer.lot.domain.LotDetails;
+import com.spydrone.orthanc_scan_consumer.lot.domain.LotDetailsChanged;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotHoldChanged;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotRepository;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
@@ -69,17 +71,24 @@ public class LotEventRecorder {
 		record(LotEventMessage.HOLD_CHANGED, event.lotId(), event.at(), null, null, null, null, null, null, null);
 	}
 
+	@EventListener
+	public void on(LotDetailsChanged event) {
+		record(LotEventMessage.DETAILS_CHANGED, event.lotId(), event.at(), null, null, null, null, null, null, null);
+	}
+
 	/**
-	 * @param location where the lot is after this event; null to take it from the saved lot. Status and
-	 *        hold always come from the saved lot, since only their own events change them.
+	 * @param location where the lot is after this event; null to take it from the saved lot. Status, hold
+	 *        and details always come from the saved lot, since only their own events change them.
 	 */
 	private void record(String type, String lotId, Instant at, Location location, Place from, Place to,
 			ScanInfo scan, String discrepancy, String rejectionReason, LotStatus previousStatus) {
 		Lot lot = lots.findById(lotId).orElseThrow();
 		Location where = location != null ? location : lot.location();
+		LotDetails details = lot.details();
 		LotEventMessage message = new LotEventMessage(UUID.randomUUID().toString(), type,
 				LotEventMessage.SCHEMA_VERSION, null, at, lotId,
-				new LotState(where.stage(), where.wipLocation(), lot.getStatus(), lot.isOnHold()),
+				new LotState(where.stage(), where.wipLocation(), lot.getStatus(), lot.isOnHold(),
+						details.contractShipDate(), details.waferCount(), details.chipType(), details.processType()),
 				from, to, scan, discrepancy, rejectionReason, previousStatus);
 		outbox.save(new OutboxEvent(message.eventId(), lotId, type, json.writeValueAsString(message), at));
 	}

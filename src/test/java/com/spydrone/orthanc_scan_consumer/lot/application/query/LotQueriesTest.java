@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -17,10 +18,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotNotFoundException;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
 import com.spydrone.orthanc_scan_consumer.lot.application.history.LotHistoryRecorder;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Discrepancy;
+import com.spydrone.orthanc_scan_consumer.lot.domain.LotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 import com.spydrone.orthanc_scan_consumer.stage.LotStageRoutes;
@@ -50,11 +55,22 @@ class LotQueriesTest {
 		commands.handle(new SetLotHold("L1", true, NOW.minusSeconds(30)));
 
 		assertThat(queries.list()).containsExactly(
-				new LotView("L2", "wafer-prep", null, LotStatus.ACTIVE, false, NOW,
+				new LotView("L2", "wafer-prep", null, LotStatus.ACTIVE, false, null, null, null, null, NOW,
 						new LotView.LastScan("c2", "u", NOW)),
-				new LotView("L1", "intake", "INTAKE-001", LotStatus.ACTIVE, true, NOW.minusSeconds(30),
+				new LotView("L1", "intake", "INTAKE-001", LotStatus.ACTIVE, true, null, null, null, null,
+						NOW.minusSeconds(30),
 						new LotView.LastScan("c1", "u", NOW.minusSeconds(60))));
 		assertThat(queries.get("L1").onHold()).isTrue();
+	}
+
+	@Test
+	void viewsCarryDetailsIncludingForUnscannedLots() {
+		commands.handle(new SetLotDetails("L1",
+				new LotDetails(LocalDate.of(2026, 12, 15), 25, ChipType.X_SERIES, ProcessType.C), NOW));
+
+		assertThat(queries.get("L1")).isEqualTo(new LotView("L1", null, null, LotStatus.ACTIVE, false,
+				LocalDate.of(2026, 12, 15), 25, ChipType.X_SERIES, ProcessType.C, NOW, null));
+		assertThat(queries.list()).hasSize(1);
 	}
 
 	@Test

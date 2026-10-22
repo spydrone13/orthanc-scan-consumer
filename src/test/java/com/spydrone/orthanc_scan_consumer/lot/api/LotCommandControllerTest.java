@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,9 +21,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotNotFoundException;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
+import com.spydrone.orthanc_scan_consumer.lot.domain.LotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 
 /** Pins the write API's paths, bodies and responses. */
 @WebMvcTest(LotCommandController.class)
@@ -89,6 +94,44 @@ class LotCommandControllerTest {
 						.content("{\"onHold\":true}"))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.detail").value("Unknown lot: nope"));
+	}
+
+	@Test
+	void updatesDetails() throws Exception {
+		LotDetails details = new LotDetails(LocalDate.of(2026, 12, 15), 25, ChipType.Z_SERIES, ProcessType.B);
+		Lot lot = Lot.registered("L1");
+		lot.changeDetails(details, Instant.now());
+		given(commands.handle(argThat((SetLotDetails c) -> c != null && c.lotId().equals("L1")
+				&& c.details().equals(details)))).willReturn(lot);
+
+		mvc.perform(put("/api/lots/L1/details").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"contractShipDate\":\"2026-12-15\",\"waferCount\":25,\"chipType\":\"Z_SERIES\","
+								+ "\"processType\":\"B\"}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.lotId").value("L1"))
+				.andExpect(jsonPath("$.currentStage").doesNotExist())
+				.andExpect(jsonPath("$.contractShipDate").value("2026-12-15"))
+				.andExpect(jsonPath("$.waferCount").value(25))
+				.andExpect(jsonPath("$.chipType").value("Z_SERIES"))
+				.andExpect(jsonPath("$.processType").value("B"));
+	}
+
+	@Test
+	void invalidDetailsAreBadRequests() throws Exception {
+		mvc.perform(put("/api/lots/L1/details").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"waferCount\":-1}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detail").value("waferCount can't be negative"));
+		mvc.perform(put("/api/lots/L1/details").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"chipType\":\"A_SERIES\"}"))
+				.andExpect(status().isBadRequest());
+		mvc.perform(put("/api/lots/L1/details").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"processType\":\"D\"}"))
+				.andExpect(status().isBadRequest());
+		mvc.perform(put("/api/lots/L1/details").contentType(MediaType.APPLICATION_JSON)
+						.content("{\"contractShipDate\":\"15/12/2026\"}"))
+				.andExpect(status().isBadRequest());
+		verifyNoInteractions(commands);
 	}
 
 	@Test

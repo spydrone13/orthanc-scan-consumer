@@ -143,6 +143,7 @@ The routing key is the event type:
 | `lot.scan-rejected`      | A scan wasn't applied (lot on hold, or not active)                           |
 | `lot.status-changed`     | The lot's status changed                                                     |
 | `lot.hold-changed`       | The lot was placed on hold or released                                       |
+| `lot.details-changed`    | Contract ship date, wafer count, chip type or process type changed           |
 
 Bind with `lot.#` for everything, or with the specific keys you need.
 
@@ -155,7 +156,8 @@ JSON, with AMQP properties `messageId` (= `eventId`), `type` (= routing key), `c
 {
   "eventId": "6f1c…", "type": "lot.moved", "schemaVersion": 1, "sequence": 1042,
   "occurredAt": "2026-10-08T13:45:00Z", "lotId": "L1",
-  "lot":  { "currentStage": "wafer-prep", "wipLocation": "WAFER-PREP-001", "status": "active", "onHold": false },
+  "lot":  { "currentStage": "wafer-prep", "wipLocation": "WAFER-PREP-001", "status": "active", "onHold": false,
+            "contractShipDate": "2026-12-15", "waferCount": 25, "chipType": "Z_SERIES", "processType": "B" },
   "from": { "stage": "intake", "wipLocation": null },
   "to":   { "stage": "wafer-prep", "wipLocation": "WAFER-PREP-001" },
   "scan": { "clientId": "c1", "userName": "op1", "scanStage": "intake", "note": "" },
@@ -163,7 +165,9 @@ JSON, with AMQP properties `messageId` (= `eventId`), `type` (= routing key), `c
 }
 ```
 
-- `lot` is the lot's state right after the event, so most subscribers never need to call back.
+- `lot` is the lot's state right after the event, so most subscribers never need to call back. Its details
+  (`contractShipDate`, `waferCount`, `chipType`, `processType`) are `null` until set through
+  `PUT /api/lots/{lotId}/details`.
 - `discrepancy` (`OFF_ROUTE`, `LOCATION_CORRECTED`, `LOCATION_MISMATCH_UNCONFIRMED`) is set when a move or
   correction was flagged for review; `rejectionReason` (e.g. `LOT_ON_HOLD`) on `lot.scan-rejected`;
   `previousStatus` on `lot.status-changed`. Statuses are spelled as in the lot API (`active`, `complete`, ...).

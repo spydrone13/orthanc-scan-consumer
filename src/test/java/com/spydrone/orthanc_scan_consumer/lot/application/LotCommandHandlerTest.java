@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -13,14 +14,18 @@ import org.springframework.context.annotation.Import;
 
 import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
 import com.spydrone.orthanc_scan_consumer.lot.application.history.LotHistoryRecorder;
 import com.spydrone.orthanc_scan_consumer.lot.application.history.LotStageEvent;
 import com.spydrone.orthanc_scan_consumer.lot.application.history.LotStageEventRepository;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Location;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
+import com.spydrone.orthanc_scan_consumer.lot.domain.LotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotRepository;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 import com.spydrone.orthanc_scan_consumer.stage.LotStageRoutes;
@@ -89,6 +94,27 @@ class LotCommandHandlerTest {
 		assertThat(handler.handle(new SetLotHold("L1", true, NOW)).isOnHold()).isTrue();
 		assertThat(handler.handle(new SetLotHold("L1", false, NOW)).isOnHold()).isFalse();
 		assertThat(lots.findById("L1").orElseThrow().getStatus()).isEqualTo(LotStatus.CANCELED);
+	}
+
+	@Test
+	void detailsRegisterAnUnscannedLotAndUpdateAnExistingOne() {
+		LotDetails details = new LotDetails(LocalDate.of(2026, 12, 15), 25, ChipType.Q_SERIES, ProcessType.C);
+
+		handler.handle(new SetLotDetails("L1", details, NOW.minusSeconds(60)));
+
+		Lot registered = lots.findById("L1").orElseThrow();
+		assertThat(registered.details()).isEqualTo(details);
+		assertThat(registered.location()).isEqualTo(Location.NOWHERE);
+		assertThat(registered.getStatus()).isEqualTo(LotStatus.ACTIVE);
+
+		handler.handle(ApplyScan.from(scan("c1", "intake", "intake", null), NOW.minusSeconds(30)));
+		LotDetails updated = new LotDetails(LocalDate.of(2027, 1, 4), 24, ChipType.X_SERIES, ProcessType.A);
+		handler.handle(new SetLotDetails("L1", updated, NOW));
+
+		Lot lot = lots.findById("L1").orElseThrow();
+		assertThat(lot.details()).isEqualTo(updated);
+		assertThat(lot.location()).isEqualTo(new Location("intake", null));
+		assertThat(history.findByLotIdOrderByOccurredAtDesc("L1")).hasSize(1);
 	}
 
 	@Test

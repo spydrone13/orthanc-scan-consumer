@@ -1,15 +1,20 @@
 package com.spydrone.orthanc_scan_consumer.lot.application.query;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
+import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
+import com.spydrone.orthanc_scan_consumer.lot.domain.LotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 
 /**
- * Read model for a lot, as returned by /api/lots.
+ * Read model for a lot, as returned by /api/lots. contractShipDate, waferCount, chipType and processType
+ * are the lot's {@link LotDetails}, each null when not given.
  *
  * @param lastScan the scan that put the lot where it is; null if not known, and in the responses to
- *        status and hold changes
+ *        status, hold and details changes
  */
 public record LotView(
 		String lotId,
@@ -17,6 +22,10 @@ public record LotView(
 		String wipLocation,
 		LotStatus status,
 		boolean onHold,
+		LocalDate contractShipDate,
+		Integer waferCount,
+		ChipType chipType,
+		ProcessType processType,
 		Instant updatedAt,
 		LastScan lastScan) {
 
@@ -26,18 +35,26 @@ public record LotView(
 
 	public LotView(String lotId, String currentStage, String wipLocation, LotStatus status, boolean onHold,
 			Instant updatedAt) {
-		this(lotId, currentStage, wipLocation, status, onHold, updatedAt, null);
+		this(lotId, currentStage, wipLocation, status, onHold, null, null, null, null, updatedAt, null);
 	}
 
-	/** For the JPQL projection: the stored status name, and the last scan's columns for the nested record. */
+	/**
+	 * For the JPQL projection: the stored status, chip type and process type names, and the last scan's
+	 * columns for the nested record.
+	 */
 	public LotView(String lotId, String currentStage, String wipLocation, String status, boolean onHold,
-			Instant updatedAt, String lastScanClientId, String lastScanUserName, Instant lastScanAt) {
-		this(lotId, currentStage, wipLocation, LotStatus.valueOf(status), onHold, updatedAt,
+			LocalDate contractShipDate, Integer waferCount, String chipType, String processType, Instant updatedAt,
+			String lastScanClientId, String lastScanUserName, Instant lastScanAt) {
+		this(lotId, currentStage, wipLocation, LotStatus.valueOf(status), onHold, contractShipDate, waferCount,
+				chipType == null ? null : ChipType.valueOf(chipType),
+				processType == null ? null : ProcessType.valueOf(processType), updatedAt,
 				lastScanClientId == null ? null : new LastScan(lastScanClientId, lastScanUserName, lastScanAt));
 	}
 
 	public static LotView of(Lot lot) {
+		LotDetails details = lot.details();
 		return new LotView(lot.getLotId(), lot.location().stage(), lot.location().wipLocation(), lot.getStatus(),
-				lot.isOnHold(), lot.getUpdatedAt());
+				lot.isOnHold(), details.contractShipDate(), details.waferCount(), details.chipType(),
+				details.processType(), lot.getUpdatedAt(), null);
 	}
 }

@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
 import com.spydrone.orthanc_scan_consumer.lot.application.query.LotView;
 
@@ -39,5 +40,14 @@ public class LotCommandController {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "onHold is required");
 		}
 		return LotView.of(commands.handle(new SetLotHold(lotId, update.onHold(), Instant.now())));
+	}
+
+	/** Replaces all the details, registering the lot if it hasn't been scanned yet. */
+	@PutMapping("/{lotId}/details")
+	public LotView updateDetails(@PathVariable String lotId, @RequestBody LotDetailsUpdate update) {
+		if (update.waferCount() != null && update.waferCount() < 0) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "waferCount can't be negative");
+		}
+		return LotView.of(commands.handle(new SetLotDetails(lotId, update.toDetails(), Instant.now())));
 	}
 }

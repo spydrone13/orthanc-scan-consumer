@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -18,7 +19,9 @@ import com.spydrone.orthanc_scan_consumer.lot.application.LotNotFoundException;
 import com.spydrone.orthanc_scan_consumer.lot.application.query.LotQueries;
 import com.spydrone.orthanc_scan_consumer.lot.application.query.LotStageEventView;
 import com.spydrone.orthanc_scan_consumer.lot.application.query.LotView;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
 
 /** Pins the read API's paths and JSON shapes, which the producer and UI depend on. */
@@ -55,6 +58,19 @@ class LotQueryControllerTest {
 		mvc.perform(get("/api/lots/L1"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.currentStage").value("S1"));
+	}
+
+	@Test
+	void lotsCarryTheirDetails() throws Exception {
+		given(queries.get("L1")).willReturn(new LotView("L1", "S1", null, LotStatus.ACTIVE, false,
+				LocalDate.of(2026, 12, 15), 25, ChipType.Q_SERIES, ProcessType.A, NOW, null));
+
+		mvc.perform(get("/api/lots/L1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.contractShipDate").value("2026-12-15"))
+				.andExpect(jsonPath("$.waferCount").value(25))
+				.andExpect(jsonPath("$.chipType").value("Q_SERIES"))
+				.andExpect(jsonPath("$.processType").value("A"));
 	}
 
 	@Test

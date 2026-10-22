@@ -2,3 +2,10 @@
 GET http://localhost:3001/api/lots
 
 ###
+### PUT lot details (registers the lot if it hasn't been scanned yet)
+PUT http://localhost:3001/api/lots/LOT-001/details
+Content-Type: application/json
+
+{"contractShipDate":"2026-12-15","waferCount":25,"chipType":"Z_SERIES","processType":"B"}
+
+###

@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
 import com.spydrone.orthanc_scan_consumer.lot.application.history.LotHistoryRecorder;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
@@ -49,6 +50,13 @@ public class LotCommandHandler {
 		else {
 			lot.releaseHold(command.at());
 		}
+		return lots.save(lot);
+	}
+
+	/** Registers the lot if it hasn't been scanned yet, so details can be given ahead of its first scan. */
+	public Lot handle(SetLotDetails command) {
+		Lot lot = lots.findById(command.lotId()).orElseGet(() -> Lot.registered(command.lotId()));
+		lot.changeDetails(command.details(), command.at());
 		return lots.save(lot);
 	}
 

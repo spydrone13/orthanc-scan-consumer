@@ -1,6 +1,7 @@
 package com.spydrone.orthanc_scan_consumer.lot.domain;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Objects;
 
 import org.hibernate.annotations.ColumnDefault;
@@ -15,10 +16,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * Aggregate root for a lot: where it is, its status and whether it's on hold, and the rules for
- * scanning it. Changes only through its methods, reported as domain events ({@link ScanApplied},
- * {@link ScanRejected}, {@link LocationCorrected}, {@link LotStatusChanged}, {@link LotHoldChanged})
- * that are published when the lot is saved.
+ * Aggregate root for a lot: where it is, its status and whether it's on hold, its {@link LotDetails},
+ * and the rules for scanning it. Changes only through its methods, reported as domain events
+ * ({@link ScanApplied}, {@link ScanRejected}, {@link LocationCorrected}, {@link LotStatusChanged},
+ * {@link LotHoldChanged}, {@link LotDetailsChanged}) that are published when the lot is saved.
  */
 @Entity
 @Table(name = "lots")
@@ -42,6 +43,12 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 	private Instant updatedAt;
 	/** The scan that put the lot where it is; null for lots stored before this was kept. */
 	private String lastScanClientId;
+	private LocalDate contractShipDate;
+	private Integer waferCount;
+	/** A {@link ChipType} name, kept as a plain string like {@link #status}. */
+	private String chipType;
+	/** A {@link ProcessType} name, kept as a plain string like {@link #status}. */
+	private String processType;
 
 	protected Lot() {
 	}
@@ -52,6 +59,11 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 
 	/** A lot seen for the first time: active, not on hold, not yet anywhere. */
 	public static Lot firstScanned(String lotId) {
+		return new Lot(lotId);
+	}
+
+	/** A lot given its details before its first scan: active, not on hold, not yet anywhere. */
+	public static Lot registered(String lotId) {
 		return new Lot(lotId);
 	}
 
@@ -162,6 +174,20 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 		}
 	}
 
+	/** Replaces all the details; null fields are cleared. Reported as {@link LotDetailsChanged} if they actually change. */
+	public void changeDetails(LotDetails details, Instant at) {
+		LotDetails previous = details();
+		Objects.requireNonNull(details);
+		this.contractShipDate = details.contractShipDate();
+		this.waferCount = details.waferCount();
+		this.chipType = details.chipType() == null ? null : details.chipType().name();
+		this.processType = details.processType() == null ? null : details.processType().name();
+		this.updatedAt = at;
+		if (!previous.equals(details)) {
+			registerEvent(new LotDetailsChanged(lotId, previous, details, at));
+		}
+	}
+
 	private static Location destination(Scan scan, Location from) {
 		String destinationStage = blankToNull(scan.destinationStage());
 		String destinationWipLocation = blankToNull(scan.destinationWipLocation());
@@ -196,5 +222,10 @@ public class Lot extends AbstractAggregateRoot<Lot> {
 
 	public Instant getUpdatedAt() {
 		return updatedAt;
+	}
+
+	public LotDetails details() {
+		return new LotDetails(contractShipDate, waferCount, chipType == null ? null : ChipType.valueOf(chipType),
+				processType == null ? null : ProcessType.valueOf(processType));
 	}
 }

@@ -2,7 +2,7 @@
 -- spring.jpa.hibernate.ddl-auto=validate (or none). Kept under db/oracle/ so Spring Boot doesn't run it
 -- automatically as schema.sql.
 --
--- Enum-backed columns (scan_type, status, exception) are plain VARCHAR2 with no CHECK listing allowed
+-- Enum-backed columns (scan_type, status, exception, chip_type, process_type) are plain VARCHAR2 with no CHECK listing allowed
 -- values, so values added to the enums later are accepted (see SchemaTest).
 --
 -- EXCEPTION is a PL/SQL keyword: it's a legal column name in plain SQL, but quote it ("EXCEPTION") when
@@ -80,8 +80,20 @@ CREATE TABLE lots (
     on_hold             NUMBER(1)          DEFAULT 0 NOT NULL CHECK (on_hold IN (0, 1)),
     updated_at          TIMESTAMP(6) WITH TIME ZONE,
     last_scan_client_id VARCHAR2(255 CHAR),
+    contract_ship_date  DATE,
+    wafer_count         NUMBER(10),
+    chip_type           VARCHAR2(255 CHAR),
+    process_type        VARCHAR2(255 CHAR),
     CONSTRAINT pk_lots PRIMARY KEY (lot_id)
 );
+
+-- For a database created before lot details existed:
+-- ALTER TABLE lots ADD (
+--     contract_ship_date DATE,
+--     wafer_count        NUMBER(10),
+--     chip_type          VARCHAR2(255 CHAR),
+--     process_type       VARCHAR2(255 CHAR)
+-- );
 
 CREATE INDEX ix_lots_updated_at ON lots (updated_at);
 

@@ -3,6 +3,7 @@ package com.spydrone.orthanc_scan_consumer.lot.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 
@@ -337,6 +338,44 @@ class LotTest {
 		assertThat(List.<Object>copyOf(events(lot).subList(before, events(lot).size()))).containsExactly(
 				new LotHoldChanged("L1", true, NOW),
 				new LotHoldChanged("L1", false, NOW.plusSeconds(2)));
+	}
+
+	@Test
+	void detailsAreReplacedAndReportedOnlyWhenTheyChange() {
+		Lot lot = lotAt("S1", "WIP-1");
+		int before = events(lot).size();
+		LotDetails details = new LotDetails(LocalDate.of(2026, 12, 15), 25, ChipType.Z_SERIES, ProcessType.B);
+
+		lot.changeDetails(LotDetails.NONE, NOW);
+		assertThat(events(lot)).hasSize(before);
+
+		lot.changeDetails(details, NOW);
+		assertThat(lot.details()).isEqualTo(details);
+		assertThat(lot.getUpdatedAt()).isEqualTo(NOW);
+		assertThat(lastEvent(lot)).isEqualTo(new LotDetailsChanged("L1", LotDetails.NONE, details, NOW));
+
+		lot.changeDetails(details, NOW.plusSeconds(1));
+		assertThat(events(lot)).hasSize(before + 1);
+
+		LotDetails cleared = new LotDetails(null, 25, null, ProcessType.B);
+		lot.changeDetails(cleared, NOW.plusSeconds(2));
+		assertThat(lot.details()).isEqualTo(cleared);
+		assertThat(lastEvent(lot)).isEqualTo(new LotDetailsChanged("L1", details, cleared, NOW.plusSeconds(2)));
+		assertThat(lot.location()).isEqualTo(new Location("S1", "WIP-1"));
+	}
+
+	@Test
+	void registeredLotIsPlacedByItsFirstScanAndKeepsItsDetails() {
+		Lot lot = Lot.registered("L1");
+		LotDetails details = new LotDetails(LocalDate.of(2026, 12, 15), 25, ChipType.H_SERIES, ProcessType.A);
+		lot.changeDetails(details, EARLIER);
+		assertThat(lot.location()).isEqualTo(Location.NOWHERE);
+
+		lot.applyScan(scan("S1", null, null), ROUTES, NOW);
+
+		assertThat(lot.location()).isEqualTo(new Location("S1", null));
+		assertThat(lot.details()).isEqualTo(details);
+		assertThat(lastEvent(lot)).isInstanceOf(ScanApplied.class);
 	}
 
 	private static Scan scan(String stage, String destinationStage, String destinationWipLocation) {
