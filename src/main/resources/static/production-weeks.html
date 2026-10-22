@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Production Weeks</title>
+  <link rel="stylesheet" href="/css/vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="/css/lot-stages.css">
+  <script type="module" src="/js/production-weeks.js"></script>
+</head>
+<body>
+  <main class="page container-fluid">
+    <div class="card page-card mx-auto">
+      <div class="card-body">
+        <h1 class="card-title h4 fw-semibold">Production Weeks</h1>
+        <p class="intro small text-body-secondary">
+          Weeks run Saturday to Friday and are numbered by their Friday within the year. Close a week to stop
+          planning into it; reopen it any time.
+        </p>
+
+        <div class="toolbar d-flex flex-wrap align-items-center">
+          <div class="year-picker input-group input-group-sm">
+            <button id="prev-year" type="button" class="btn btn-outline-secondary" aria-label="Previous year">&lsaquo;</button>
+            <label class="visually-hidden" for="year">Year</label>
+            <input id="year" type="number" class="form-control text-center" min="2000" max="2100" step="1" inputmode="numeric">
+            <button id="next-year" type="button" class="btn btn-outline-secondary" aria-label="Next year">&rsaquo;</button>
+          </div>
+          <span id="count" class="count small text-body-tertiary" aria-live="polite"></span>
+        </div>
+
+        <div id="status" class="status" role="status"></div>
+
+        <div class="table-wrap table-responsive border rounded-3" id="table-wrap" hidden>
+          <table class="table mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Week</th>
+                <th scope="col">Week ending</th>
+                <th scope="col">Status</th>
+                <th scope="col"><span class="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+
+        <div id="empty" class="empty-year" hidden>
+          <p id="empty-message" class="small text-body-tertiary"></p>
+          <button id="seed" type="button" class="btn btn-sm btn-primary"></button>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

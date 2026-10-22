@@ -708,8 +708,21 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
 #### **Reference:** `week/` (`ProductionWeek`, `ProductionWeeks`, `ProductionWeekService`, `ProductionWeekController`), `api-requests/production-weeks.http`, tests `ProductionWeeksTest`, `ProductionWeekServiceTest`, `ProductionWeekControllerTest`
 **Depends on:** CON-1
 
+### CON-17: Production weeks admin page (2 pts)
+**Description:** A page to view a year's production weeks, create them, and open or close any week. It's built like the failed-scans page: static HTML with plain JS and the vendored Bootstrap.
+
+#### AC:
+- `/production-weeks` serves the page. The selected year is kept as `?year=` in the URL; without it the page opens on the current year.
+- A year input (2000 to 2100) with ‹ › buttons loads that year's weeks.
+- A year with no weeks shows "No production weeks for {year} yet." and a **Create weeks for {year}** button, which calls `POST /api/production-weeks/years/{year}`.
+- Each week is shown with its number, the Friday it ends on, an Open or Closed badge and a **Close** or **Reopen** button, which calls `PUT …/{year}/{week}/status`. Closed rows are muted.
+- The week containing today is marked "This week". A count line reads e.g. "52 weeks · 3 closed".
+- Buttons are disabled while a request runs. Errors show the server's `detail`.
+#### **Reference:** `static/production-weeks.html`, `static/js/production-weeks.js`, `static/css/lot-stages.css`, `week/ProductionWeekPageConfig.java`, test `ProductionWeekPageTest`
+**Depends on:** CON-16
+
 ---
 
 ## Build order / parallelism
-CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16. Total: about 45 points.
+CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16 → CON-17. Total: about 47 points.
 

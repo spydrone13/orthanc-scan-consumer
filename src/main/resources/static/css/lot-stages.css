@@ -490,6 +490,61 @@ tr.row--editing {
   height: auto;
 }
 
+/* Production weeks (production-weeks.html) */
+.year-picker {
+  width: auto;
+}
+
+.year-picker .form-control {
+  flex: 0 0 5.5rem;
+  font-weight: 600;
+  /* Hide the number spinners; the ‹ › buttons step the year. */
+  appearance: textfield;
+}
+
+.year-picker .form-control::-webkit-inner-spin-button,
+.year-picker .form-control::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+tr.week-closed > td:not(.actions) {
+  color: var(--gray-400);
+}
+
+.week-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-open {
+  color: var(--success-green);
+  background: var(--success-green-bg);
+}
+
+.badge-closed {
+  color: var(--gray-700);
+  background: var(--gray-100);
+}
+
+.this-week {
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--gray-900);
+  background: var(--highlight);
+  white-space: nowrap;
+}
+
+.empty-year {
+  padding: 1.5rem 0 0.5rem;
+}
+
 @media print {
   body {
     background: #fff;

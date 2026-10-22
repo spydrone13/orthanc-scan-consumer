@@ -125,6 +125,15 @@ the new version, let the queue drain, then delete `orthanc.scans` in the managem
 → Delete). Both apps redeclare it on startup. Messages still in the queue when it's deleted are lost. The
 producer declares the same queue and must be updated at the same time.
 
+## Production weeks
+
+Open http://localhost:3001/production-weeks. Pick a year with the ‹ › buttons or by typing it; the year is kept
+in the URL (`?year=2026`), so links can be shared. A year with no weeks yet shows **Create weeks for …**, which
+adds all of its weeks, open. Each week runs Saturday to Friday and is listed by the Friday it ends on. **Close**
+and **Reopen** change one week's state.
+
+The same is available as an API under `/api/production-weeks` (see `api-requests/production-weeks.http`).
+
 ## Lot events for other applications
 
 Every committed change to a lot is published to the topic exchange **`orthanc.lots`**, for any number of
