@@ -51,7 +51,7 @@ function validYear(value) {
 }
 
 function setStatus(message, isError = false) {
-  els.status.className = isError ? 'status text-danger' : 'status';
+  els.status.classList.toggle('text-danger', isError);
   els.status.replaceChildren(...(message ? [message] : []));
 }
 

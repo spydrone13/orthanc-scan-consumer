@@ -26,12 +26,19 @@
             <button id="next-year" type="button" class="btn btn-outline-secondary" aria-label="Next year">&rsaquo;</button>
           </div>
           <span id="count" class="count small text-body-tertiary" aria-live="polite"></span>
+          <!-- In the toolbar so a message never pushes the table down. -->
+          <div id="status" class="status week-status ms-auto" role="status"></div>
         </div>
 
-        <div id="status" class="status" role="status"></div>
-
         <div class="table-wrap table-responsive border rounded-3" id="table-wrap" hidden>
-          <table class="table mb-0">
+          <!-- Fixed column widths, so Close/Reopen and Open/Closed don't resize the columns. -->
+          <table class="table weeks-table mb-0">
+            <colgroup>
+              <col class="col-week">
+              <col class="col-ending">
+              <col class="col-status">
+              <col class="col-actions">
+            </colgroup>
             <thead>
               <tr>
                 <th scope="col">Week</th>

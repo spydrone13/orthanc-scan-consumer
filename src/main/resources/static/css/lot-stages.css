@@ -508,6 +508,25 @@ tr.row--editing {
   margin: 0;
 }
 
+/* Widths come from the colgroup, not the content, so toggling a week never moves the columns. */
+.weeks-table {
+  table-layout: fixed;
+}
+
+.weeks-table .col-week {
+  width: 8rem;
+}
+
+.weeks-table .col-status,
+.weeks-table .col-actions {
+  width: 7rem;
+}
+
+/* Sits in the toolbar, on the year picker's line. */
+.week-status {
+  padding: 0;
+}
+
 tr.week-closed > td:not(.actions) {
   color: var(--gray-400);
 }
