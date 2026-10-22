@@ -13,3 +13,9 @@ curl -X PUT http://localhost:3001/api/lots/LOT-003/hold \
 curl -X PUT http://localhost:3001/api/lots/LOT-001/details \
     -H "Content-Type: application/json" \
     -d '{"contractShipDate":"2026-12-15","waferCount":25,"chipType":"Z_SERIES","processType":"B"}'
+
+curl -X POST http://localhost:3001/api/production-weeks/years/2026
+
+curl -X PUT http://localhost:3001/api/production-weeks/2026/7/status \
+    -H "Content-Type: application/json" \
+    -d '{"status":"closed"}'

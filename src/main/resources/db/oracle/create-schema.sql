@@ -2,7 +2,7 @@
 -- spring.jpa.hibernate.ddl-auto=validate (or none). Kept under db/oracle/ so Spring Boot doesn't run it
 -- automatically as schema.sql.
 --
--- Enum-backed columns (scan_type, status, exception, chip_type, process_type) are plain VARCHAR2 with no CHECK listing allowed
+-- Enum-backed columns (scan_type, status, exception, chip_type, process_type, production_weeks.status) are plain VARCHAR2 with no CHECK listing allowed
 -- values, so values added to the enums later are accepted (see SchemaTest).
 --
 -- EXCEPTION is a PL/SQL keyword: it's a legal column name in plain SQL, but quote it ("EXCEPTION") when
@@ -136,3 +136,14 @@ CREATE TABLE lot_outbox_events (
 
 -- Unpublished events in order, and published ones past retention.
 CREATE INDEX ix_lot_outbox_published ON lot_outbox_events (published_at, id);
+
+-- Production weeks (Saturday to Friday, numbered by their Friday within the year) ----------------
+
+CREATE TABLE production_weeks (
+    end_date    DATE               NOT NULL,
+    prod_year   NUMBER(10)         NOT NULL,
+    week_number NUMBER(10)         NOT NULL,
+    status      VARCHAR2(255 CHAR) DEFAULT 'OPEN' NOT NULL,
+    CONSTRAINT pk_production_weeks PRIMARY KEY (end_date),
+    CONSTRAINT uk_production_weeks_year_week UNIQUE (prod_year, week_number)
+);

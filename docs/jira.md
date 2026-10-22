@@ -678,8 +678,38 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
 #### **Reference:** `lot/domain/LotDetails.java`, `ChipType.java`, `ProcessType.java`, `LotDetailsChanged.java`, `lot/api/LotDetailsUpdate.java`, `lot/application/command/SetLotDetails.java`
 **Depends on:** CON-9, CON-12
 
+### CON-16: Production weeks (3 pts)
+**Description:** A calendar of production weeks to plan against. A week runs Saturday to Friday. It's numbered within its year and is either open or closed.
+
+#### AC:
+- Week N of year Y ends on the Nth Friday of Y. Week 1 ends on the year's first Friday, so a year has 52 or 53 weeks (2026 has 52, 2027 has 53). Days after the last Friday belong to week 1 of the next year.
+- Creating a year adds its missing weeks, open, and leaves existing weeks as they are, so it's safe to run again. Valid years are 2000 to 2100.
+- Any week can be opened or closed at any time.
+- `production_weeks.status` is a plain string, as checked by `SchemaTest`.
+
+**API:**
+
+**ProductionWeekView object**
+
+| Field | Type | Meaning |
+|---|---|---|
+| `year` | int | Year the week is numbered in |
+| `weekNumber` | int | 1 to 53 |
+| `startDate` | date | The Saturday the week starts on |
+| `endDate` | date | The Friday the week ends on |
+| `status` | enum | `open`, `closed` |
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| `POST` | `/api/production-weeks/years/{year}` | none | 200 with the year's `ProductionWeekView[]`; 400 if the year isn't between 2000 and 2100 |
+| `GET` | `/api/production-weeks?year=2026` | none | `ProductionWeekView[]` in date order; every week when `year` is left out |
+| `GET` | `/api/production-weeks/{year}/{week}` | none | The week; 404 `"Unknown production week: 2026-W60"` |
+| `PUT` | `/api/production-weeks/{year}/{week}/status` | `{ "status": "closed" }` | The updated week; 400 `"Status is required"` or for an unknown status; 404 for an unknown week |
+#### **Reference:** `week/` (`ProductionWeek`, `ProductionWeeks`, `ProductionWeekService`, `ProductionWeekController`), `api-requests/production-weeks.http`, tests `ProductionWeeksTest`, `ProductionWeekServiceTest`, `ProductionWeekControllerTest`
+**Depends on:** CON-1
+
 ---
 
 ## Build order / parallelism
-CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15. Total: about 42 points.
+CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16. Total: about 45 points.
 

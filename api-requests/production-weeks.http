@@ -1,0 +1,16 @@
+### Create every week of 2026, open (run again: adds only missing weeks)
+POST http://localhost:3001/api/production-weeks/years/2026
+
+### List 2026's weeks (leave out year for every week)
+GET http://localhost:3001/api/production-weeks?year=2026
+
+### Get week 7 of 2026
+GET http://localhost:3001/api/production-weeks/2026/7
+
+### Close week 7 of 2026
+PUT http://localhost:3001/api/production-weeks/2026/7/status
+Content-Type: application/json
+
+{"status":"closed"}
+
+###
