@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
+import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
+
 @RestController
 @RequestMapping("/api/production-weeks")
 public class ProductionWeekController {
@@ -43,6 +46,18 @@ public class ProductionWeekController {
 	@GetMapping
 	public List<ProductionWeekView> list(@RequestParam(required = false) Integer year) {
 		return service.list(year);
+	}
+
+	/**
+	 * Whether a lot fits in the week's capacity. Give lotId for a stored lot, the details for one that isn't
+	 * stored yet, or both to override the stored details. Changes nothing.
+	 */
+	@GetMapping("/{year}/{week}/schedule-check")
+	public ScheduleCheckView scheduleCheck(@PathVariable int year, @PathVariable int week,
+			@RequestParam(required = false) String lotId, @RequestParam(required = false) Integer waferCount,
+			@RequestParam(required = false) ChipType chipType,
+			@RequestParam(required = false) ProcessType processType) {
+		return schedule.check(year, week, lotId, waferCount, chipType, processType);
 	}
 
 	@GetMapping("/{year}/{week}")

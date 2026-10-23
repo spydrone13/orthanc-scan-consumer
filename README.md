@@ -139,6 +139,13 @@ total, its chip type, its process type, and its chip type with its process type.
 lots don't count. Nothing stops a week going over capacity. The figures come from
 `GET /api/production-weeks/scheduled?year=`, loaded after the weeks so the table shows straight away.
 
+To ask whether a lot would fit before setting its ship date, call
+`GET /api/production-weeks/{year}/{week}/schedule-check?lotId=…` (or `?waferCount=…&chipType=…&processType=…` for
+a lot not stored yet; given with `lotId`, these override the stored values). It answers `canSchedule` with the
+`reasons` it can't (`WEEK_CLOSED`, `OVER_CAPACITY`, `LOT_NOT_ACTIVE`) and each applicable capacity before and after.
+A lot fits when the week is open and every capacity line it matches has room; a week with no matching lines has no
+limit. A lot already scheduled in that week isn't counted twice. The check changes nothing.
+
 The same is available as an API under `/api/production-weeks` (see `api-requests/production-weeks.http`).
 
 ## Lot events for other applications

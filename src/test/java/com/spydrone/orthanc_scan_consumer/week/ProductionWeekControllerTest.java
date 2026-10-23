@@ -61,6 +61,36 @@ class ProductionWeekControllerTest {
 	}
 
 	@Test
+	void checksWhetherALotCanBeScheduled() throws Exception {
+		given(schedule.check(2027, 2, "L1", 30, ChipType.Z_SERIES, null)).willReturn(new ScheduleCheckView(2027, 2,
+				false, List.of(ScheduleCheckView.Reason.OVER_CAPACITY),
+				new ScheduleCheckView.LotCandidate("L1", 30, ChipType.Z_SERIES, ProcessType.A, false),
+				List.of(new ScheduleCheckView.CapacityCheck(ChipType.Z_SERIES, null, 500, 480, 510, false))));
+
+		mvc.perform(get("/api/production-weeks/2027/2/schedule-check")
+						.param("lotId", "L1").param("waferCount", "30").param("chipType", "Z_SERIES"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.canSchedule").value(false))
+				.andExpect(jsonPath("$.reasons[0]").value("OVER_CAPACITY"))
+				.andExpect(jsonPath("$.lot.lotId").value("L1"))
+				.andExpect(jsonPath("$.lot.processType").value("A"))
+				.andExpect(jsonPath("$.lot.alreadyScheduled").value(false))
+				.andExpect(jsonPath("$.capacities[0].chipType").value("Z_SERIES"))
+				.andExpect(jsonPath("$.capacities[0].processType").value(nullValue()))
+				.andExpect(jsonPath("$.capacities[0].scheduled").value(480))
+				.andExpect(jsonPath("$.capacities[0].afterScheduling").value(510))
+				.andExpect(jsonPath("$.capacities[0].fits").value(false));
+	}
+
+	@Test
+	void scheduleCheckRejectsUnknownTypes() throws Exception {
+		mvc.perform(get("/api/production-weeks/2027/2/schedule-check")
+						.param("waferCount", "5").param("chipType", "A_SERIES"))
+				.andExpect(status().isBadRequest());
+		verifyNoInteractions(schedule);
+	}
+
+	@Test
 	void scheduledNeedsAYear() throws Exception {
 		mvc.perform(get("/api/production-weeks/scheduled"))
 				.andExpect(status().isBadRequest());

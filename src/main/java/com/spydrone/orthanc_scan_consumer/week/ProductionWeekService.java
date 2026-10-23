@@ -91,8 +91,12 @@ public class ProductionWeekService {
 	}
 
 	private ProductionWeek existing(int year, int week) {
-		return weeks.findByYearAndWeekNumber(year, week).orElseThrow(() -> new ResponseStatusException(
-				HttpStatus.NOT_FOUND, "Unknown production week: %d-W%02d".formatted(year, week)));
+		return weeks.findByYearAndWeekNumber(year, week).orElseThrow(() -> notFound(year, week));
+	}
+
+	static ResponseStatusException notFound(int year, int week) {
+		return new ResponseStatusException(HttpStatus.NOT_FOUND,
+				"Unknown production week: %d-W%02d".formatted(year, week));
 	}
 
 	private static List<ProductionWeekView> views(List<ProductionWeek> weeks) {

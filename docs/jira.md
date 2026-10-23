@@ -774,8 +774,38 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
 #### **Reference:** `week/ProductionWeekScheduleService.java`, `ScheduledWafersRepository.java`, `ScheduledLots.java`, `ScheduledWeekView.java`, `static/js/production-weeks.js`, test `ProductionWeekScheduleServiceTest`
 **Depends on:** CON-15, CON-18
 
+### CON-20: Schedule check: can a lot be scheduled into a production week (2 pts)
+**Description:** A read-only check, before a lot is committed to a week, of whether it fits the week's capacity.
+
+#### AC:
+- The lot is given by `lotId` (stored wafer count and types), by `waferCount` / `chipType` / `processType` for a lot not stored yet, or both (given values override stored ones).
+- It can be scheduled when the week is open, the lot (if stored) is active, and for every capacity rule it matches (CON-19's matching), scheduled + its wafers ≤ capacity. Reaching capacity exactly fits. A week with no matching rules has no limit.
+- A stored lot that's already scheduled in the week (active, ship date in the week) has its own wafers taken off first, so it isn't counted twice.
+- Every applicable reason is given: `WEEK_CLOSED`, `OVER_CAPACITY`, `LOT_NOT_ACTIVE`.
+- Nothing is changed or blocked; `PUT /api/lots/{id}/details` still accepts any ship date.
+
+**API:**
+
+**`GET /api/production-weeks/{year}/{week}/schedule-check?lotId=L1`** (or `?waferCount=100&chipType=Z_SERIES&processType=A`)
+- 200:
+  ```json
+  {
+    "year": 2027, "weekNumber": 2, "canSchedule": false, "reasons": ["OVER_CAPACITY"],
+    "lot": { "lotId": null, "waferCount": 10, "chipType": "Z_SERIES", "processType": "A", "alreadyScheduled": false },
+    "capacities": [
+      { "chipType": null, "processType": null, "capacity": 1200, "scheduled": 1025, "afterScheduling": 1035, "fits": true },
+      { "chipType": "Z_SERIES", "processType": null, "capacity": 500, "scheduled": 550, "afterScheduling": 560, "fits": false }
+    ]
+  }
+  ```
+  `capacities` holds only the rules that apply to the lot.
+- 400: `"waferCount is required"` (none given or stored), `"waferCount can't be negative"`, or an unknown chip or process type.
+- 404: `"Unknown production week: 2027-W60"`, `"Unknown lot: L1"`.
+#### **Reference:** `ProductionWeekScheduleService.check`, `ScheduleCheckView.java`, tests `ProductionWeekScheduleServiceTest`, `ProductionWeekControllerTest`
+**Depends on:** CON-19
+
 ---
 
 ## Build order / parallelism
-CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16 → CON-17 → CON-18 → CON-19. Total: about 53 points.
+CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16 → CON-17 → CON-18 → CON-19 → CON-20. Total: about 55 points.
 
