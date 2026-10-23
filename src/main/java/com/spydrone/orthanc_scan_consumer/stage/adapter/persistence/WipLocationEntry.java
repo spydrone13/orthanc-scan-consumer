@@ -1,11 +1,11 @@
-package com.spydrone.orthanc_scan_consumer.stage;
+package com.spydrone.orthanc_scan_consumer.stage.adapter.persistence;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 
 /** A row of lot_stage_wip_locations. Description is null until set, then shown as the default. */
 @Embeddable
-public class WipLocationEntry {
+class WipLocationEntry {
 
 	@Column(name = "wip_location")
 	private String id;
@@ -14,16 +14,16 @@ public class WipLocationEntry {
 	protected WipLocationEntry() {
 	}
 
-	public WipLocationEntry(String id, String description) {
+	WipLocationEntry(String id, String description) {
 		this.id = id;
 		this.description = description;
 	}
 
-	public String getId() {
+	String getId() {
 		return id;
 	}
 
-	public String getDescription() {
+	String getDescription() {
 		return description;
 	}
 }

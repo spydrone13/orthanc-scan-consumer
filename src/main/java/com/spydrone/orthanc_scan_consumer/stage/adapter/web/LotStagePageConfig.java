@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.stage;
+package com.spydrone.orthanc_scan_consumer.stage.adapter.web;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;

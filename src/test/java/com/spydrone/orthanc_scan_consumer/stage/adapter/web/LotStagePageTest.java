@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.stage;
+package com.spydrone.orthanc_scan_consumer.stage.adapter.web;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -13,6 +13,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.spydrone.orthanc_scan_consumer.stage.application.StageService;
+
 @WebMvcTest(LotStageController.class)
 @Import(LotStagePageConfig.class)
 class LotStagePageTest {
@@ -21,7 +23,7 @@ class LotStagePageTest {
 	private MockMvc mvc;
 
 	@MockitoBean
-	private LotStageService service;
+	private StageService service;
 
 	@Test
 	void friendlyUrlForwardsToPage() throws Exception {

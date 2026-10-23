@@ -1,4 +1,4 @@
-package com.spydrone.orthanc_scan_consumer.stage;
+package com.spydrone.orthanc_scan_consumer.stage.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

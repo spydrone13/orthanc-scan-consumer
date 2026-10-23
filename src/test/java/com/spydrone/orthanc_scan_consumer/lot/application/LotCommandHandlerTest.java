@@ -28,12 +28,15 @@ import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 import com.spydrone.orthanc_scan_consumer.scan.ScanRecord;
 import com.spydrone.orthanc_scan_consumer.scan.ScanType;
-import com.spydrone.orthanc_scan_consumer.stage.LotStageRoutes;
-import com.spydrone.orthanc_scan_consumer.stage.LotStageService;
+import com.spydrone.orthanc_scan_consumer.stage.adapter.lot.LotStageRoutes;
+import com.spydrone.orthanc_scan_consumer.stage.adapter.persistence.JpaStageRepository;
+import com.spydrone.orthanc_scan_consumer.stage.adapter.seed.ClasspathJsonStageSeedSource;
+import com.spydrone.orthanc_scan_consumer.stage.application.StageService;
 
 /** Commands through the real repository, domain-event publishing and history recorder. */
 @DataJpaTest
-@Import({ LotCommandHandler.class, LotHistoryRecorder.class, LotStageRoutes.class, LotStageService.class })
+@Import({ LotCommandHandler.class, LotHistoryRecorder.class, LotStageRoutes.class,
+		StageService.class, JpaStageRepository.class, ClasspathJsonStageSeedSource.class })
 class LotCommandHandlerTest {
 
 	private static final Instant NOW = Instant.parse("2026-10-05T12:00:00Z");

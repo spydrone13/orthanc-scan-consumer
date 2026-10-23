@@ -1,9 +1,12 @@
-package com.spydrone.orthanc_scan_consumer.stage;
+package com.spydrone.orthanc_scan_consumer.stage.domain;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** A WIP location within a stage, keyed by its id in {@link LotStage#wipLocations()}. */
+/**
+ * A WIP location within a stage, keyed by its id in {@link Stage#wipLocations()}. The description is
+ * null until set; {@link Stage#describedWipLocations()} fills in the default.
+ */
 public record WipLocation(String description) {
 
 	private static final Pattern TRAILING_NUMBER = Pattern.compile("-(\\d+)$");
