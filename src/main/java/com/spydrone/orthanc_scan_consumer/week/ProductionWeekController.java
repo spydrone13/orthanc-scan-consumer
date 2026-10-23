@@ -18,9 +18,20 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProductionWeekController {
 
 	private final ProductionWeekService service;
+	private final ProductionWeekScheduleService schedule;
 
-	public ProductionWeekController(ProductionWeekService service) {
+	public ProductionWeekController(ProductionWeekService service, ProductionWeekScheduleService schedule) {
 		this.service = service;
+		this.schedule = schedule;
+	}
+
+	/**
+	 * Wafers scheduled against each week's capacity. Separate from the weeks list so the page can show the
+	 * weeks first and fill this in when it arrives.
+	 */
+	@GetMapping("/scheduled")
+	public List<ScheduledWeekView> scheduled(@RequestParam int year) {
+		return schedule.scheduled(year);
 	}
 
 	/** Creates the year's missing weeks, open, and returns all of the year's weeks. */

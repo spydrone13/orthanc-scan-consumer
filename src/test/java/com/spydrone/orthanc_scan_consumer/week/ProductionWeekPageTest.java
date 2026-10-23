@@ -23,6 +23,9 @@ class ProductionWeekPageTest {
 	@MockitoBean
 	private ProductionWeekService service;
 
+	@MockitoBean
+	private ProductionWeekScheduleService schedule;
+
 	@Test
 	void friendlyUrlForwardsToPage() throws Exception {
 		mvc.perform(get("/production-weeks").param("year", "2026"))

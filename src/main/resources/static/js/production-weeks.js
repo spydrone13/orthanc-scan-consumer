@@ -1,6 +1,8 @@
 // Production-weeks page. Reads GET /api/production-weeks?year=; creates a year's weeks with
 // POST /api/production-weeks/years/{year}, opens or closes one with PUT …/{year}/{week}/status and sets its
-// capacity with PUT …/{year}/{week}/capacities. The selected year is kept in the URL (?year=).
+// capacity with PUT …/{year}/{week}/capacities. Wafers scheduled against each capacity come from
+// GET /api/production-weeks/scheduled?year=, loaded after the weeks so the table shows first; only the
+// Capacity cells are updated when it arrives. The selected year is kept in the URL (?year=).
 
 const API = '/api/production-weeks';
 const MIN_YEAR = 2000;
@@ -30,6 +32,12 @@ let weeks = null;
 let busy = false;
 /** The week number whose capacity is being edited, or null. */
 let editingWeek = null;
+/**
+ * weekNumber → { weekNumber, lots, scheduledWafers, capacities: [{ chipType, processType, capacity, scheduled }] }
+ * for the shown year; null while loading or after it failed (scheduledFailed).
+ */
+let scheduled = null;
+let scheduledFailed = false;
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 const numberFormat = new Intl.NumberFormat();
@@ -67,6 +75,8 @@ async function load(newYear) {
   els.year.value = year;
   history.replaceState(null, '', `?year=${year}`);
   weeks = null;
+  scheduled = null;
+  scheduledFailed = false;
   render();
   setBusy(true);
   try {
@@ -78,10 +88,36 @@ async function load(newYear) {
     weeks = loaded;
     setStatus();
     render();
+    if (weeks.length > 0) loadScheduled(year);
   } catch (err) {
     if (newYear === year) setStatus(`Could not load production weeks: ${networkAware(err)}.`, true);
   } finally {
     if (newYear === year) setBusy(false);
+  }
+}
+
+/** Not awaited: the weeks are already shown, and only their Capacity cells change when this arrives. */
+async function loadScheduled(forYear) {
+  try {
+    const res = await fetch(`${API}/scheduled?year=${forYear}`);
+    if (!res.ok) throw new Error(await errorMessage(res));
+    const loaded = await res.json();
+    if (forYear !== year) return;
+    scheduled = new Map(loaded.map(s => [s.weekNumber, s]));
+    scheduledFailed = false;
+  } catch (err) {
+    if (forYear !== year) return;
+    scheduled = null;
+    scheduledFailed = true;
+    setStatus(`Could not load scheduled wafers: ${networkAware(err)}.`, true);
+  }
+  refreshCapacityCells();
+}
+
+/** Redraws only the Capacity cells, so an open capacity editor keeps what's been typed. */
+function refreshCapacityCells() {
+  for (const week of weeks ?? []) {
+    document.querySelector(`#week-${week.weekNumber} .capacity-cell`)?.replaceChildren(capacityCell(week));
   }
 }
 
@@ -93,6 +129,7 @@ async function seed() {
     weeks = await res.json();
     setStatus(`Created ${weeks.length} weeks for ${year}.`);
     render();
+    loadScheduled(year);
   } catch (err) {
     setStatus(`Could not create weeks: ${networkAware(err)}.`, true);
   } finally {
@@ -167,7 +204,7 @@ function viewRow(week) {
     el('td', { 'data-label': 'Status' }, [
       el('span', { class: open ? 'week-badge badge-open' : 'week-badge badge-closed', text: open ? 'Open' : 'Closed' }),
     ]),
-    el('td', { 'data-label': 'Capacity' }, [capacityList(week.capacities)]),
+    el('td', { class: 'capacity-cell', 'data-label': 'Capacity' }, [capacityCell(week)]),
     el('td', { class: 'actions' }, [
       el('button', {
         type: 'button',
@@ -189,13 +226,49 @@ function viewRow(week) {
   ]);
 }
 
-function capacityList(capacities) {
-  if (capacities.length === 0) return el('span', { class: 'text-body-tertiary', text: '—' });
-  return el('ul', { class: 'capacity-list' }, capacities.map(c =>
-    el('li', {}, [
+/**
+ * Each capacity rule as "label  scheduled / capacity" over a usage bar, then "N lots · W wafers scheduled".
+ * Scheduled figures show "…" until they've loaded, and are left out if loading them failed.
+ */
+function capacityCell(week) {
+  const loading = scheduled === null && !scheduledFailed;
+  const usage = scheduled?.get(week.weekNumber);
+  const lots = usage?.lots ?? 0;
+  if (week.capacities.length === 0 && lots === 0) {
+    return el('span', { class: 'text-body-tertiary', text: loading ? '…' : '—' });
+  }
+  const lines = week.capacities.map(c => {
+    // Matched by type rather than position, in case the rules changed since the figures were loaded.
+    const used = usage?.capacities.find(u => u.chipType === c.chipType && u.processType === c.processType)?.scheduled
+      ?? (scheduled ? 0 : null);
+    const over = used !== null && used > c.waferCount;
+    return el('li', { class: over ? 'capacity-over' : '' }, [
       el('span', { class: 'capacity-label', text: capacityLabel(c) }),
-      el('span', { class: 'capacity-count', text: numberFormat.format(c.waferCount) }),
-    ])));
+      el('span', { class: 'capacity-count' }, [
+        ...(used !== null
+          ? [el('span', { class: 'capacity-scheduled', text: numberFormat.format(used) }), ' / ']
+          : loading ? [el('span', { class: 'text-body-tertiary', text: '…' }), ' / '] : []),
+        numberFormat.format(c.waferCount),
+      ]),
+      ...(used !== null ? [usageBar(used, c.waferCount)] : []),
+    ]);
+  });
+  return el('div', {}, [
+    ...(lines.length > 0 ? [el('ul', { class: 'capacity-list' }, lines)] : []),
+    ...(lots > 0
+      ? [el('div', {
+          class: 'capacity-summary',
+          text: `${lots} ${lots === 1 ? 'lot' : 'lots'} · ${numberFormat.format(usage.scheduledWafers)} wafers scheduled`,
+        })]
+      : []),
+  ]);
+}
+
+function usageBar(used, capacity) {
+  const percent = capacity > 0 ? Math.min(100, (used / capacity) * 100) : (used > 0 ? 100 : 0);
+  return el('span', { class: 'capacity-bar', 'aria-hidden': 'true' }, [
+    el('span', { style: `width: ${percent}%` }),
+  ]);
 }
 
 /** "All", "Z_SERIES", "Process B" or "Z_SERIES / A". */
@@ -314,7 +387,11 @@ function editRow(week) {
       editingWeek = null;
       busy = false;
       setStatus(`Week ${week.weekNumber} capacity saved.`);
+      // New rules need their own scheduled figures; show "…" until they arrive.
+      scheduled = null;
+      scheduledFailed = false;
       render();
+      loadScheduled(year);
       document.querySelector(`#week-${week.weekNumber} .actions button`)?.focus();
     } catch (err) {
       busy = false;

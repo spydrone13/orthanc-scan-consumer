@@ -730,7 +730,7 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
 - Rules are stored in `production_week_capacities`, with types as plain strings (checked by `SchemaTest`). They're returned on every `ProductionWeekView`, sorted total first, then by chip type, by process type, then both.
 - Closed weeks can still be given capacity. Creating a year again leaves existing capacity alone.
 - The production-weeks page shows the rules in a Capacity column, and a **Capacity** button edits them inline. Missing or negative counts and repeated combinations are flagged before saving.
-- Capacity is recorded only: nothing checks lots against it yet, as lots aren't assigned to weeks.
+- Capacity is recorded only; CON-19 shows the wafers scheduled against it, and nothing blocks going over.
 
 **API:**
 
@@ -745,8 +745,37 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
 #### **Reference:** `week/WeekCapacity.java`, `CapacityEntry.java`, `ProductionWeekService.setCapacities`, `static/js/production-weeks.js`, tests `ProductionWeekServiceTest`, `ProductionWeekControllerTest`
 **Depends on:** CON-17
 
+### CON-19: Scheduled wafers against production week capacity (3 pts)
+**Description:** Show, for each capacity rule, the wafers already scheduled against it. Loaded separately from the weeks so the table shows first.
+
+#### AC:
+- An active lot (held or not) is scheduled in the week (Saturday to Friday) containing its contract ship date. Canceled, destroyed and complete lots, and lots with no ship date, don't count.
+- A lot counts toward every rule it matches: a rule matches when each type it names equals the lot's. A lot with no chip type counts only toward rules that don't name one; likewise for process type.
+- A lot with no wafer count is counted as a lot with 0 wafers.
+- Ship dates after a year's last Friday belong to week 1 of the next year.
+- The page loads the figures after rendering the weeks and updates only the Capacity cells, so an open capacity editor keeps its input. Each line shows `scheduled / capacity` with a usage bar, red when over; each week with lots shows "N lots · W wafers scheduled". Saving capacity reloads the figures.
+
+**API:**
+
+**`GET /api/production-weeks/scheduled?year=2027`**: every week of the year with scheduled lots or capacity rules, in week order.
+- 200:
+  ```json
+  [
+    {
+      "weekNumber": 2, "lots": 4, "scheduledWafers": 1025,
+      "capacities": [
+        { "chipType": null, "processType": null, "capacity": 1200, "scheduled": 1025 },
+        { "chipType": "Z_SERIES", "processType": null, "capacity": 500, "scheduled": 550 }
+      ]
+    }
+  ]
+  ```
+- 400: `year` missing, or not between 2000 and 2100.
+#### **Reference:** `week/ProductionWeekScheduleService.java`, `ScheduledWafersRepository.java`, `ScheduledLots.java`, `ScheduledWeekView.java`, `static/js/production-weeks.js`, test `ProductionWeekScheduleServiceTest`
+**Depends on:** CON-15, CON-18
+
 ---
 
 ## Build order / parallelism
-CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16 → CON-17 → CON-18. Total: about 50 points.
+CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16 → CON-17 → CON-18 → CON-19. Total: about 53 points.
 

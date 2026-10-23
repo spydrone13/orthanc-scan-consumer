@@ -10,9 +10,9 @@ curl -X PUT http://localhost:3001/api/lots/LOT-003/hold \
     -H "Content-Type: application/json" \
     -d '{"onHold":true}'
 
-curl -X PUT http://localhost:3001/api/lots/LOT-001/details \
+curl -X PUT http://localhost:3001/api/lots/LOT-017/details \
     -H "Content-Type: application/json" \
-    -d '{"contractShipDate":"2026-12-15","waferCount":25,"chipType":"Z_SERIES","processType":"B"}'
+    -d '{"contractShipDate":"2026-01-12","waferCount":100,"chipType":"Q_SERIES","processType":"B"}'
 
 curl -X POST http://localhost:3001/api/production-weeks/years/2026
 

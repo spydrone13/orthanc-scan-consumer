@@ -23,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
+import com.spydrone.orthanc_scan_consumer.week.ScheduledWeekView.CapacityUsage;
 
 /** Pins the production-week API's paths and JSON shapes. */
 @WebMvcTest(ProductionWeekController.class)
@@ -36,6 +37,35 @@ class ProductionWeekControllerTest {
 
 	@MockitoBean
 	private ProductionWeekService service;
+
+	@MockitoBean
+	private ProductionWeekScheduleService schedule;
+
+	@Test
+	void listsScheduledWafers() throws Exception {
+		given(schedule.scheduled(2027)).willReturn(List.of(new ScheduledWeekView(2, 3, 820, List.of(
+				new CapacityUsage(null, null, 1200, 820),
+				new CapacityUsage(ChipType.Z_SERIES, ProcessType.A, 100, 150)))));
+
+		mvc.perform(get("/api/production-weeks/scheduled").param("year", "2027"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].weekNumber").value(2))
+				.andExpect(jsonPath("$[0].lots").value(3))
+				.andExpect(jsonPath("$[0].scheduledWafers").value(820))
+				.andExpect(jsonPath("$[0].capacities[0].chipType").value(nullValue()))
+				.andExpect(jsonPath("$[0].capacities[0].capacity").value(1200))
+				.andExpect(jsonPath("$[0].capacities[0].scheduled").value(820))
+				.andExpect(jsonPath("$[0].capacities[1].chipType").value("Z_SERIES"))
+				.andExpect(jsonPath("$[0].capacities[1].processType").value("A"))
+				.andExpect(jsonPath("$[0].capacities[1].scheduled").value(150));
+	}
+
+	@Test
+	void scheduledNeedsAYear() throws Exception {
+		mvc.perform(get("/api/production-weeks/scheduled"))
+				.andExpect(status().isBadRequest());
+		verifyNoInteractions(schedule);
+	}
 
 	@Test
 	void createsAYear() throws Exception {

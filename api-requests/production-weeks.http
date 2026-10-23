@@ -4,6 +4,9 @@ POST http://localhost:3001/api/production-weeks/years/2026
 ### List 2026's weeks (leave out year for every week)
 GET http://localhost:3001/api/production-weeks?year=2026
 
+### Wafers scheduled against each week's capacity in 2026 (active lots, by contract ship date)
+GET http://localhost:3001/api/production-weeks/scheduled?year=2026
+
 ### Get week 7 of 2026
 GET http://localhost:3001/api/production-weeks/2026/7
 

@@ -131,8 +131,13 @@ Open http://localhost:3001/production-weeks. Pick a year with the ‹ › button
 in the URL (`?year=2026`), so links can be shared. A year with no weeks yet shows **Create weeks for …**, which
 adds all of its weeks, open. Each week runs Saturday to Friday and is listed by the Friday it ends on. **Close**
 and **Reopen** change one week's state. **Capacity** edits the week's capacity in wafers: any number of lines, each
-for a chip type, a process type, both, or neither (the week's total). Each combination can appear once. Capacity
-is only recorded for now; nothing checks lots against it yet.
+for a chip type, a process type, both, or neither (the week's total). Each combination can appear once.
+
+Each capacity line shows the wafers scheduled against it, e.g. `550 / 500` (red when over). An active lot, held
+or not, is scheduled in the week containing its contract ship date, and counts toward every line it matches: the
+total, its chip type, its process type, and its chip type with its process type. Canceled, destroyed and complete
+lots don't count. Nothing stops a week going over capacity. The figures come from
+`GET /api/production-weeks/scheduled?year=`, loaded after the weeks so the table shows straight away.
 
 The same is available as an API under `/api/production-weeks` (see `api-requests/production-weeks.http`).
 
