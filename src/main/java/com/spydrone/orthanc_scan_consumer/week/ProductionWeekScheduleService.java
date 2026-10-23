@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotQueries;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotView;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotDetails;
@@ -38,12 +40,21 @@ public class ProductionWeekScheduleService {
 	private final ScheduledWafersRepository scheduled;
 	private final ProductionWeekRepository weeks;
 	private final LotRepository lots;
+	private final LotQueries lotQueries;
 
 	public ProductionWeekScheduleService(ScheduledWafersRepository scheduled, ProductionWeekRepository weeks,
-			LotRepository lots) {
+			LotRepository lots, LotQueries lotQueries) {
 		this.scheduled = scheduled;
 		this.weeks = weeks;
 		this.lots = lots;
+		this.lotQueries = lotQueries;
+	}
+
+	/** The lots scheduled in the week, by ship date then id: the ones {@link #scheduled(int)} counts. */
+	public List<LotView> lots(int year, int weekNumber) {
+		ProductionWeek week = weeks.findByYearAndWeekNumber(year, weekNumber)
+				.orElseThrow(() -> ProductionWeekService.notFound(year, weekNumber));
+		return lotQueries.activeShippingBetween(week.getStartDate(), week.getEndDate());
 	}
 
 	/**

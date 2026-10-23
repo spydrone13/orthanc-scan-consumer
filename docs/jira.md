@@ -804,8 +804,19 @@ Exchange `orthanc.lots` (topic). The routing key is the event `type`.
 #### **Reference:** `ProductionWeekScheduleService.check`, `ScheduleCheckView.java`, tests `ProductionWeekScheduleServiceTest`, `ProductionWeekControllerTest`
 **Depends on:** CON-19
 
+### CON-21: View a production week's scheduled lots (2 pts)
+**Description:** Show which lots make up a week's scheduled wafers, so a planner can see what to move when a week is over capacity.
+
+#### AC:
+- `GET /api/production-weeks/{year}/{week}/lots` returns the week's scheduled lots as `LotView`s (the lot API's format), by ship date then lot id. These are the same lots CON-19 counts: active (held or not), with their contract ship date in the week. Unknown week → 404; no lots → `[]`.
+- The page's "N lots · W wafers scheduled" line opens a modal (native `<dialog>`): the week and its capacity lines as `scheduled / capacity`, then a table of lot, ship date, wafers, chip, process, stage / WIP and hold.
+- Wafer counts are red for lots counting toward a capacity line that's over.
+- The lots are fetched each time the modal opens; a late response for a closed or different week is ignored. Escape, the Close button and a backdrop click close it, returning focus to the line.
+#### **Reference:** `ProductionWeekScheduleService.lots`, `LotQueries.activeShippingBetween`, `LotViewRepository.findActiveShippingBetween`, `static/js/production-weeks.js`, tests `ProductionWeekScheduleServiceTest`, `ProductionWeekControllerTest`, `LotQueriesTest`
+**Depends on:** CON-19
+
 ---
 
 ## Build order / parallelism
-CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16 → CON-17 → CON-18 → CON-19 → CON-20. Total: about 55 points.
+CON-1 → (CON-2 ∥ CON-3) → CON-4 → CON-5; then CON-6 (needs 2 and 3) → CON-7 → CON-8; CON-9; CON-10 → CON-11 (can start after 2); CON-12 → CON-13 → CON-14; CON-15; CON-16 → CON-17 → CON-18 → CON-19 → CON-20; CON-19 → CON-21. Total: about 57 points.
 

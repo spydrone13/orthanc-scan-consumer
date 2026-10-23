@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -21,7 +22,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotView;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
+import com.spydrone.orthanc_scan_consumer.lot.domain.LotStatus;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 import com.spydrone.orthanc_scan_consumer.week.ScheduledWeekView.CapacityUsage;
 
@@ -80,6 +83,25 @@ class ProductionWeekControllerTest {
 				.andExpect(jsonPath("$.capacities[0].scheduled").value(480))
 				.andExpect(jsonPath("$.capacities[0].afterScheduling").value(510))
 				.andExpect(jsonPath("$.capacities[0].fits").value(false));
+	}
+
+	@Test
+	void listsTheWeeksLots() throws Exception {
+		given(schedule.lots(2027, 2)).willReturn(List.of(new LotView("UI-1", "wafer-prep", "WAFER-PREP-001",
+				LotStatus.ACTIVE, true, LocalDate.of(2027, 1, 2), 350, ChipType.Z_SERIES, ProcessType.A,
+				Instant.parse("2026-10-22T12:00:00Z"), null)));
+
+		mvc.perform(get("/api/production-weeks/2027/2/lots"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].lotId").value("UI-1"))
+				.andExpect(jsonPath("$[0].currentStage").value("wafer-prep"))
+				.andExpect(jsonPath("$[0].wipLocation").value("WAFER-PREP-001"))
+				.andExpect(jsonPath("$[0].status").value("active"))
+				.andExpect(jsonPath("$[0].onHold").value(true))
+				.andExpect(jsonPath("$[0].contractShipDate").value("2027-01-02"))
+				.andExpect(jsonPath("$[0].waferCount").value(350))
+				.andExpect(jsonPath("$[0].chipType").value("Z_SERIES"))
+				.andExpect(jsonPath("$[0].processType").value("A"));
 	}
 
 	@Test

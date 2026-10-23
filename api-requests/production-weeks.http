@@ -7,6 +7,9 @@ GET http://localhost:3001/api/production-weeks?year=2026
 ### Wafers scheduled against each week's capacity in 2026 (active lots, by contract ship date)
 GET http://localhost:3001/api/production-weeks/scheduled?year=2026
 
+### Lots scheduled in week 7 of 2026 (active, contract ship date in the week)
+GET http://localhost:3001/api/production-weeks/2026/7/lots
+
 ### Can a stored lot be scheduled into week 7 of 2026?
 GET http://localhost:3001/api/production-weeks/2026/7/schedule-check?lotId=LOT-002
 

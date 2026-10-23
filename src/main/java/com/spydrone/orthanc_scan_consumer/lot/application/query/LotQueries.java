@@ -1,6 +1,7 @@
 package com.spydrone.orthanc_scan_consumer.lot.application.query;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +27,11 @@ public class LotQueries {
 	/** All lots, most recently updated first. */
 	public List<LotView> list() {
 		return lots.findAllNewestFirst();
+	}
+
+	/** Active lots (held or not) shipping between the dates, inclusive, by ship date then id. */
+	public List<LotView> activeShippingBetween(LocalDate from, LocalDate to) {
+		return lots.findActiveShippingBetween(from, to);
 	}
 
 	/** @throws LotNotFoundException if there's no such lot */

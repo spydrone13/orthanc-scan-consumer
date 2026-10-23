@@ -18,6 +18,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotCommandHandler;
 import com.spydrone.orthanc_scan_consumer.lot.application.LotNotFoundException;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.ApplyScan;
+import com.spydrone.orthanc_scan_consumer.lot.application.command.ChangeLotStatus;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotDetails;
 import com.spydrone.orthanc_scan_consumer.lot.application.command.SetLotHold;
 import com.spydrone.orthanc_scan_consumer.lot.application.history.LotHistoryRecorder;
@@ -71,6 +72,21 @@ class LotQueriesTest {
 		assertThat(queries.get("L1")).isEqualTo(new LotView("L1", null, null, LotStatus.ACTIVE, false,
 				LocalDate.of(2026, 12, 15), 25, ChipType.X_SERIES, ProcessType.C, NOW, null));
 		assertThat(queries.list()).hasSize(1);
+	}
+
+	@Test
+	void activeLotsShippingBetweenDatesIncludeTheEdgesAndNotInactiveLots() {
+		LotDetails details = new LotDetails(LocalDate.of(2027, 1, 2), 10, ChipType.Z_SERIES, ProcessType.A);
+		commands.handle(new SetLotDetails("L2", details, NOW));
+		commands.handle(new SetLotDetails("L1",
+				new LotDetails(LocalDate.of(2027, 1, 8), 10, ChipType.Z_SERIES, ProcessType.A), NOW));
+		commands.handle(new SetLotDetails("L3", details, NOW));
+		commands.handle(new ChangeLotStatus("L3", LotStatus.COMPLETE, NOW));
+		commands.handle(new SetLotDetails("L4",
+				new LotDetails(LocalDate.of(2027, 1, 9), 10, ChipType.Z_SERIES, ProcessType.A), NOW));
+
+		assertThat(queries.activeShippingBetween(LocalDate.of(2027, 1, 2), LocalDate.of(2027, 1, 8)))
+				.extracting(LotView::lotId).containsExactly("L2", "L1");
 	}
 
 	@Test

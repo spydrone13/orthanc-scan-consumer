@@ -1,5 +1,6 @@
 package com.spydrone.orthanc_scan_consumer.lot.application.query;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,6 +24,11 @@ interface LotViewRepository extends Repository<Lot, String> {
 
 	@Query(SELECT_VIEW + " where l.lotId = :lotId")
 	Optional<LotView> findView(String lotId);
+
+	/** Active lots (held or not) by contract ship date, as production weeks schedule them. */
+	@Query(SELECT_VIEW + " where l.status = 'ACTIVE' and l.contractShipDate between :from and :to"
+			+ " order by l.contractShipDate, l.lotId")
+	List<LotView> findActiveShippingBetween(LocalDate from, LocalDate to);
 
 	boolean existsById(String lotId);
 }

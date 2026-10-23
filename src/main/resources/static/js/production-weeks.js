@@ -22,6 +22,11 @@ const els = {
   empty: document.getElementById('empty'),
   emptyMessage: document.getElementById('empty-message'),
   seed: document.getElementById('seed'),
+  lotsDialog: document.getElementById('week-lots'),
+  lotsTitle: document.getElementById('week-lots-title'),
+  lotsSummary: document.getElementById('week-lots-summary'),
+  lotsBody: document.getElementById('week-lots-body'),
+  lotsClose: document.getElementById('week-lots-close'),
 };
 
 /** The year shown; weeks is null until it has loaded. */
@@ -38,8 +43,11 @@ let editingWeek = null;
  */
 let scheduled = null;
 let scheduledFailed = false;
+/** Bumped each time the lots modal opens or closes, so a late response for an earlier opening is ignored. */
+let lotsRequest = 0;
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+const shortDateFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 const numberFormat = new Intl.NumberFormat();
 
 function el(tag, props = {}, children = []) {
@@ -256,12 +264,103 @@ function capacityCell(week) {
   return el('div', {}, [
     ...(lines.length > 0 ? [el('ul', { class: 'capacity-list' }, lines)] : []),
     ...(lots > 0
-      ? [el('div', {
-          class: 'capacity-summary',
-          text: `${lots} ${lots === 1 ? 'lot' : 'lots'} · ${numberFormat.format(usage.scheduledWafers)} wafers scheduled`,
-        })]
+      ? [el('div', { class: 'capacity-summary' }, [
+          el('button', {
+            type: 'button',
+            class: 'btn btn-link capacity-lots-link',
+            text: `${lots} ${lots === 1 ? 'lot' : 'lots'} · ${numberFormat.format(usage.scheduledWafers)} wafers scheduled`,
+            'aria-haspopup': 'dialog',
+            onclick: () => openLots(week),
+          }),
+        ])]
       : []),
   ]);
+}
+
+/** The week's capacity lines that are over capacity, from the loaded scheduled figures. */
+function overRules(weekNumber) {
+  return (scheduled?.get(weekNumber)?.capacities ?? []).filter(u => u.scheduled > u.capacity);
+}
+
+/** Same matching as the server: each type a rule names must equal the lot's. */
+function ruleMatches(rule, lot) {
+  return (rule.chipType === null || rule.chipType === lot.chipType)
+    && (rule.processType === null || rule.processType === lot.processType);
+}
+
+/** Opens the modal listing the week's scheduled lots; fetched every time, so it's always current. */
+async function openLots(week) {
+  const request = ++lotsRequest;
+  const usage = scheduled?.get(week.weekNumber);
+  els.lotsTitle.textContent = `Week ${week.weekNumber} · ending ${dateFormat.format(localDate(week.endDate))}`;
+  els.lotsSummary.replaceChildren(
+    ...(usage
+      ? [el('span', { class: 'week-lots-totals', text:
+          `${usage.lots} ${usage.lots === 1 ? 'lot' : 'lots'} · ${numberFormat.format(usage.scheduledWafers)} wafers` })]
+      : []),
+    ...(usage?.capacities ?? []).map(u =>
+      el('span', {
+        class: u.scheduled > u.capacity ? 'week-lots-rule over' : 'week-lots-rule',
+        text: `${capacityLabel(u)} ${numberFormat.format(u.scheduled)} / ${numberFormat.format(u.capacity)}`,
+      })),
+  );
+  els.lotsBody.replaceChildren(el('p', { class: 'small text-body-tertiary mb-0', text: 'Loading lots…' }));
+  if (!els.lotsDialog.open) els.lotsDialog.showModal();
+
+  try {
+    const res = await fetch(`${API}/${week.year}/${week.weekNumber}/lots`);
+    if (!res.ok) throw new Error(await errorMessage(res));
+    const lots = await res.json();
+    if (request !== lotsRequest) return;
+    els.lotsBody.replaceChildren(lots.length === 0
+      ? el('p', { class: 'small text-body-tertiary mb-0', text: 'No lots scheduled.' })
+      : lotsTable(lots, overRules(week.weekNumber)));
+  } catch (err) {
+    if (request !== lotsRequest) return;
+    els.lotsBody.replaceChildren(
+      el('p', { class: 'small text-danger mb-0', text: `Could not load lots: ${networkAware(err)}.` }));
+  }
+}
+
+function lotsTable(lots, over) {
+  const headCells = [
+    el('th', { scope: 'col', text: 'Lot' }),
+    el('th', { scope: 'col', text: 'Ship date' }),
+    el('th', { scope: 'col', class: 'text-end', text: 'Wafers' }),
+    el('th', { scope: 'col', text: 'Chip' }),
+    el('th', { scope: 'col', text: 'Process' }),
+    el('th', { scope: 'col', text: 'Stage / WIP' }),
+    el('th', { scope: 'col' }, [el('span', { class: 'visually-hidden', text: 'Hold' })]),
+  ];
+  return el('div', { class: 'table-responsive border rounded-3' }, [
+    el('table', { class: 'table week-lots-table mb-0' }, [
+      el('thead', {}, [el('tr', {}, headCells)]),
+      el('tbody', {}, lots.map(lot => {
+        // Over when it counts toward a capacity line that's already over.
+        const overBy = over.filter(rule => ruleMatches(rule, lot));
+        return el('tr', {}, [
+          el('td', { class: 'fw-semibold font-monospace', text: lot.lotId }),
+          el('td', { class: 'text-nowrap', text: lot.contractShipDate ? shortDateFormat.format(localDate(lot.contractShipDate)) : '—' }),
+          el('td', {
+            class: overBy.length > 0 ? 'lot-wafers over' : 'lot-wafers',
+            text: lot.waferCount === null ? '—' : numberFormat.format(lot.waferCount),
+            title: overBy.length > 0 ? `Counts toward ${overBy.map(capacityLabel).join(', ')}, over capacity` : '',
+          }),
+          el('td', { text: lot.chipType ?? '—' }),
+          el('td', { text: lot.processType ?? '—' }),
+          el('td', { text: lot.currentStage
+            ? [lot.currentStage, lot.wipLocation].filter(Boolean).join(' · ')
+            : 'Not scanned yet' }),
+          el('td', {}, lot.onHold ? [el('span', { class: 'week-badge badge-hold', text: 'On hold' })] : []),
+        ]);
+      })),
+    ]),
+  ]);
+}
+
+function closeLots() {
+  lotsRequest++;
+  els.lotsDialog.close();
 }
 
 function usageBar(used, capacity) {
@@ -465,7 +564,13 @@ els.year.addEventListener('change', () => {
 });
 els.seed.addEventListener('click', seed);
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && editingWeek !== null && !busy) cancelEdit();
+  // Escape in the lots modal only closes the modal (the dialog handles it).
+  if (e.key === 'Escape' && editingWeek !== null && !busy && !els.lotsDialog.open) cancelEdit();
 });
+els.lotsClose.addEventListener('click', closeLots);
+// The content fills the dialog, so a click on the dialog itself is a click on the backdrop.
+els.lotsDialog.addEventListener('click', e => { if (e.target === els.lotsDialog) closeLots(); });
+// Escape closes the dialog natively; a late response mustn't refill it.
+els.lotsDialog.addEventListener('close', () => { lotsRequest++; });
 
 load(year);

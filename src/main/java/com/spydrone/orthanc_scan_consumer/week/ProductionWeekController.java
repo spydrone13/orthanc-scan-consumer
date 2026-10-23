@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotView;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ProcessType;
 
@@ -58,6 +59,12 @@ public class ProductionWeekController {
 			@RequestParam(required = false) ChipType chipType,
 			@RequestParam(required = false) ProcessType processType) {
 		return schedule.check(year, week, lotId, waferCount, chipType, processType);
+	}
+
+	/** The lots scheduled in the week: active, with their contract ship date in it. */
+	@GetMapping("/{year}/{week}/lots")
+	public List<LotView> lots(@PathVariable int year, @PathVariable int week) {
+		return schedule.lots(year, week);
 	}
 
 	@GetMapping("/{year}/{week}")

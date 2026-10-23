@@ -14,6 +14,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotQueries;
+import com.spydrone.orthanc_scan_consumer.lot.application.query.LotView;
 import com.spydrone.orthanc_scan_consumer.lot.domain.ChipType;
 import com.spydrone.orthanc_scan_consumer.lot.domain.Lot;
 import com.spydrone.orthanc_scan_consumer.lot.domain.LotDetails;
@@ -27,7 +29,7 @@ import com.spydrone.orthanc_scan_consumer.week.ScheduledWeekView.CapacityUsage;
 
 /** The schedule against a real database: lots by contract ship date, matched to each week's capacity rules. */
 @DataJpaTest
-@Import({ ProductionWeekScheduleService.class, ProductionWeekService.class })
+@Import({ ProductionWeekScheduleService.class, ProductionWeekService.class, LotQueries.class })
 class ProductionWeekScheduleServiceTest {
 
 	private static final Instant NOW = Instant.parse("2026-10-22T12:00:00Z");
@@ -245,6 +247,33 @@ class ProductionWeekScheduleServiceTest {
 				"waferCount is required");
 		assertStatus(() -> schedule.check(2027, 2, null, -1, null, null), HttpStatus.BAD_REQUEST,
 				"waferCount can't be negative");
+	}
+
+	// --- the week's lots
+
+	@Test
+	void weekListsItsActiveLotsByShipDateThenId() {
+		weeks.createYear(2027);
+		Lot friday = lot(LocalDate.of(2027, 1, 8), 20, ChipType.H_SERIES, ProcessType.B);
+		Lot saturday = lot(LocalDate.of(2027, 1, 2), 10, ChipType.Z_SERIES, ProcessType.A);
+		Lot held = lot(LocalDate.of(2027, 1, 2), 30, ChipType.Z_SERIES, ProcessType.A);
+		held.placeOnHold(NOW);
+		lot(LocalDate.of(2027, 1, 1), 1, ChipType.Z_SERIES, ProcessType.A); // week 1's Friday
+		lot(LocalDate.of(2027, 1, 9), 1, ChipType.Z_SERIES, ProcessType.A); // week 3's Saturday
+		lot(null, 1, ChipType.Z_SERIES, ProcessType.A);
+		lot(LocalDate.of(2027, 1, 5), 1, ChipType.Z_SERIES, ProcessType.A).changeStatus(LotStatus.CANCELED, NOW);
+		lot(LocalDate.of(2027, 1, 5), 1, ChipType.Z_SERIES, ProcessType.A).changeStatus(LotStatus.COMPLETE, NOW);
+		lots.flush();
+
+		List<LotView> inWeek = schedule.lots(2027, 2);
+
+		assertThat(inWeek).extracting(LotView::lotId)
+				.containsExactly(saturday.getLotId(), held.getLotId(), friday.getLotId());
+		assertThat(inWeek.get(1).onHold()).isTrue();
+		assertThat(inWeek.get(2)).extracting(LotView::contractShipDate, LotView::waferCount, LotView::chipType,
+				LotView::processType).containsExactly(LocalDate.of(2027, 1, 8), 20, ChipType.H_SERIES, ProcessType.B);
+		assertThat(schedule.lots(2027, 4)).isEmpty();
+		assertStatus(() -> schedule.lots(2027, 60), HttpStatus.NOT_FOUND, "Unknown production week: 2027-W60");
 	}
 
 	private static void assertStatus(Runnable call, HttpStatus status, String reason) {

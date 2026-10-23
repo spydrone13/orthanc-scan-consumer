@@ -137,7 +137,10 @@ Each capacity line shows the wafers scheduled against it, e.g. `550 / 500` (red 
 or not, is scheduled in the week containing its contract ship date, and counts toward every line it matches: the
 total, its chip type, its process type, and its chip type with its process type. Canceled, destroyed and complete
 lots don't count. Nothing stops a week going over capacity. The figures come from
-`GET /api/production-weeks/scheduled?year=`, loaded after the weeks so the table shows straight away.
+`GET /api/production-weeks/scheduled?year=`, loaded after the weeks so the table shows straight away. Click a
+week's "N lots · W wafers scheduled" line to see those lots in a dialog (ship date, wafers, types, stage, hold);
+wafer counts in red are lots counting toward a line that's over capacity. The same list is
+`GET /api/production-weeks/{year}/{week}/lots`, in the lot API's format.
 
 To ask whether a lot would fit before setting its ship date, call
 `GET /api/production-weeks/{year}/{week}/schedule-check?lotId=…` (or `?waferCount=…&chipType=…&processType=…` for
